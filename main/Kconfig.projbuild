@@ -1,0 +1,42 @@
+menu "Claude Desktop Buddy"
+
+choice BOARD_TYPE
+    prompt "Board Type"
+    default BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
+    help
+        Select the target hardware board.
+
+    config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
+        bool "Movecall CuiCan 璀璨·AI吊坠"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
+        bool "Movecall Moji"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOVECALL_MOJI2_ESP32C5
+        bool "Movecall Moji2.0"
+        depends on IDF_TARGET_ESP32C5
+endchoice
+
+config BUDDY_DEVICE_NAME_PREFIX
+    string "BLE device name prefix"
+    default "Claude"
+    help
+        BLE advertising name prefix. The device will advertise as
+        <prefix>-XXYY where XXYY is the last 2 bytes of BT MAC.
+
+config BUDDY_APPROVAL_LONG_PRESS_MS
+    int "Long press duration for deny (ms)"
+    default 1000
+    range 500 3000
+    help
+        How long the button must be held to send a deny decision.
+        Short click sends approve.
+
+config BUDDY_SCREEN_OFF_MS
+    int "Screen auto-off timeout (ms)"
+    default 30000
+    range 5000 300000
+    help
+        Turn off screen after this period of inactivity.
+
+endmenu

@@ -1,0 +1,25 @@
+## IDF Component Manager Manifest File
+dependencies:
+  # Display drivers
+  espressif/esp_lcd_gc9a01: ==2.0.1
+  espressif/esp_lcd_st77916: ^1.0.1
+
+  # Fonts
+  78/xiaozhi-fonts: ~1.6.0
+
+  # LVGL
+  lvgl/lvgl: ~9.5.0
+  esp_lvgl_port: ~2.7.2
+
+  # LED
+  espressif/led_strip: ~3.0.2
+
+  # Button
+  espressif/button: ~4.1.5
+
+  # LittleFS for character storage
+  joltwallet/littlefs: ^1.14.8
+
+  ## Required IDF version
+  idf:
+    version: '>=5.5.2'
