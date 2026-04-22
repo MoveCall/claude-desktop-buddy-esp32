@@ -25,4 +25,10 @@
 #define DISPLAY_BACKLIGHT_PIN DISPLAY_BL
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+// MAX98357A I2S amplifier
+#define AUDIO_SPKR_BCLK    static_cast<gpio_num_t>(MAX98357A_BCLK)
+#define AUDIO_SPKR_LRCLK   static_cast<gpio_num_t>(MAX98357A_LRCLK)
+#define AUDIO_SPKR_DATA     static_cast<gpio_num_t>(MAX98357A_DATA)
+#define AUDIO_SPKR_ENABLE   static_cast<gpio_num_t>(MAX98357A_SD_MODE)
+
 #endif // _BOARD_CONFIG_H_

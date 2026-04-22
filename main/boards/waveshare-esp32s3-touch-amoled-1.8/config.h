@@ -32,4 +32,11 @@
 // TCA9554 IO expander address
 #define IO_EXPANDER_I2C_ADDR 0x20
 
+// I2S audio (ES8311 codec, shares I2C bus)
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_16
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_45
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_9
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_8
+#define AUDIO_CODEC_PA_PIN  GPIO_NUM_46
+
 #endif // _BOARD_CONFIG_H_

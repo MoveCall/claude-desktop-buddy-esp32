@@ -2,6 +2,7 @@
 #include "display/lcd_display.h"
 #include "button.h"
 #include "config.h"
+#include "i2s_buzzer.h"
 #include "buddy/core/buddy_app.h"
 #include "buddy/core/demo_mode.h"
 #include "buddy/pet/buddy_pet.h"
@@ -21,6 +22,7 @@ class LilygoTCircleS3Board : public Board {
 private:
     Button boot_button_;
     Display* display_;
+    I2sBuzzer* buzzer_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -68,6 +70,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            app.NotifyActivity();
             if (app.GetState().has_prompt()) {
                 app.Approve();
             } else {
@@ -78,6 +81,7 @@ private:
             BuddyApp::GetInstance().Deny();
         });
         boot_button_.OnDoubleClick([]() {
+            BuddyApp::GetInstance().NotifyActivity();
             uint8_t next = (buddy_pet_get_species() + 1) % buddy_pet_species_count();
             buddy_pet_set_species(next);
             buddy_nvs_save_species(next);
@@ -93,11 +97,14 @@ public:
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
+        buzzer_ = new I2sBuzzer(AUDIO_SPKR_BCLK, AUDIO_SPKR_LRCLK,
+                                AUDIO_SPKR_DATA, AUDIO_SPKR_ENABLE, I2S_NUM_1);
         GetBacklight()->RestoreBrightness();
     }
 
     virtual std::string GetBoardType() override { return "lilygo-t-circle-s3"; }
     virtual Display* GetDisplay() override { return display_; }
+    virtual Buzzer* GetBuzzer() override { return buzzer_; }
 
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);

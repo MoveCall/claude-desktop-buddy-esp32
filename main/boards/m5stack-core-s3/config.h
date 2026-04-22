@@ -6,9 +6,16 @@
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 
-// I2C bus (shared by PMIC, IO expander)
+// I2C bus (shared by PMIC, IO expander, audio codec)
 #define I2C_SDA_PIN GPIO_NUM_12
 #define I2C_SCL_PIN GPIO_NUM_11
+
+// I2S audio (AW88298 amplifier)
+#define AUDIO_I2S_GPIO_MCLK  GPIO_NUM_0
+#define AUDIO_I2S_GPIO_WS    GPIO_NUM_33
+#define AUDIO_I2S_GPIO_BCLK  GPIO_NUM_34
+#define AUDIO_I2S_GPIO_DOUT  GPIO_NUM_13
+#define AW88298_I2C_ADDR     0x36
 
 // Display - ILI9341 SPI
 #define DISPLAY_WIDTH   320

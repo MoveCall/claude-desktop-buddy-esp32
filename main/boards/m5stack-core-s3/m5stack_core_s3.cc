@@ -2,6 +2,7 @@
 #include "display/lcd_display.h"
 #include "button.h"
 #include "config.h"
+#include "i2s_buzzer.h"
 #include "buddy/core/buddy_app.h"
 #include "buddy/core/demo_mode.h"
 #include "buddy/pet/buddy_pet.h"
@@ -96,13 +97,42 @@ private:
     Pmic* pmic_;
 };
 
+class Aw88298 : public I2cDev {
+public:
+    Aw88298(i2c_master_bus_handle_t bus) : I2cDev(bus, AW88298_I2C_ADDR) {
+        WriteReg16(0x04, 0x4040);  // Volume
+        WriteReg16(0x05, 0x0008);  // SYSCTRL: I2S, 16-bit
+        WriteReg16(0x61, 0x0673);  // BSTCTRL
+        WriteReg16(0x04, 0x4040);  // Volume
+        WriteReg16(0x05, 0x0008);  // I2S mode enable
+        ESP_LOGI("AW88298", "AW88298 initialized");
+    }
+
+    void Enable() {
+        WriteReg16(0x04, 0x4040);
+        WriteReg16(0x05, 0x0009);  // PWDN=0, enable
+    }
+
+    void Disable() {
+        WriteReg16(0x05, 0x0008);  // PWDN=1
+    }
+
+private:
+    void WriteReg16(uint8_t reg, uint16_t val) {
+        uint8_t buf[3] = {reg, (uint8_t)(val >> 8), (uint8_t)(val & 0xFF)};
+        i2c_master_transmit(handle_, buf, 3, -1);
+    }
+};
+
 class M5StackCoreS3Board : public Board {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Pmic* pmic_;
     Aw9523* aw9523_;
+    Aw88298* aw88298_;
     Button boot_button_;
     Display* display_;
+    I2sBuzzer* buzzer_;
 
     void InitializeI2c() {
         i2c_master_bus_config_t cfg = {};
@@ -162,6 +192,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            app.NotifyActivity();
             if (app.GetState().has_prompt()) {
                 app.Approve();
             } else {
@@ -172,6 +203,7 @@ private:
             BuddyApp::GetInstance().Deny();
         });
         boot_button_.OnDoubleClick([]() {
+            BuddyApp::GetInstance().NotifyActivity();
             uint8_t next = (buddy_pet_get_species() + 1) % buddy_pet_species_count();
             buddy_pet_set_species(next);
             buddy_nvs_save_species(next);
@@ -187,14 +219,19 @@ public:
         InitializeI2c();
         pmic_ = new Pmic(i2c_bus_);
         aw9523_ = new Aw9523(i2c_bus_);
+        aw88298_ = new Aw88298(i2c_bus_);
+        aw88298_->Enable();
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
+        buzzer_ = new I2sBuzzer(AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
+                                AUDIO_I2S_GPIO_DOUT, GPIO_NUM_NC);
         GetBacklight()->RestoreBrightness();
     }
 
     virtual std::string GetBoardType() override { return "m5stack-core-s3"; }
     virtual Display* GetDisplay() override { return display_; }
+    virtual Buzzer* GetBuzzer() override { return buzzer_; }
 
     virtual Backlight* GetBacklight() override {
         static PmicBacklight backlight(pmic_);

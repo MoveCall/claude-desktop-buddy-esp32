@@ -16,6 +16,7 @@ public:
 
     void Approve();
     void Deny();
+    void NotifyActivity();
 
 private:
     void OnButtonClick();
@@ -30,4 +31,5 @@ private:
     PersonaState one_shot_state_ = PersonaState::IDLE;
     bool approval_sent_ = false;
     uint32_t prompt_start_ms_ = 0;
+    uint32_t last_activity_ms_ = 0;
 };

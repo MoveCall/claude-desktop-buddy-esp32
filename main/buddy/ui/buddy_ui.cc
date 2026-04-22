@@ -18,6 +18,7 @@
 
 extern const lv_font_t BUILTIN_TEXT_FONT;
 extern const lv_font_t BUILTIN_ICON_FONT;
+extern const lv_font_t font_puhui_14_1;
 
 #define TAG "buddy_ui"
 
@@ -166,7 +167,7 @@ void buddy_ui_init() {
     // --- Status message ---
     s_status_label = lv_label_create(s_screen);
     lv_obj_set_width(s_status_label, 170);
-    lv_obj_set_style_text_font(s_status_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_status_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_status_label, COLOR_DIM, 0);
     lv_obj_set_style_text_align(s_status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_status_label, LV_LABEL_LONG_WRAP);
@@ -193,7 +194,7 @@ void buddy_ui_init() {
     // --- Approval mode: tool name ---
     s_tool_label = lv_label_create(s_screen);
     lv_obj_set_width(s_tool_label, 170);
-    lv_obj_set_style_text_font(s_tool_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(s_tool_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_tool_label, COLOR_YELLOW, 0);
     lv_obj_set_style_text_align(s_tool_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_tool_label, LV_LABEL_LONG_WRAP);
@@ -204,7 +205,7 @@ void buddy_ui_init() {
     // --- Approval mode: hint ---
     s_hint_label = lv_label_create(s_screen);
     lv_obj_set_width(s_hint_label, 160);
-    lv_obj_set_style_text_font(s_hint_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_hint_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_hint_label, COLOR_DIM, 0);
     lv_obj_set_style_text_align(s_hint_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_hint_label, LV_LABEL_LONG_WRAP);
@@ -232,14 +233,14 @@ void buddy_ui_init() {
     lv_obj_set_scrollbar_mode(s_info_panel, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t* info_title = lv_label_create(s_info_panel);
-    lv_obj_set_style_text_font(info_title, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(info_title, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(info_title, COLOR_DIM, 0);
     lv_label_set_text(info_title, "Click to switch pages");
     lv_obj_align(info_title, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
 
     s_info_text = lv_label_create(s_info_panel);
     lv_obj_set_width(s_info_text, 180);
-    lv_obj_set_style_text_font(s_info_text, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_info_text, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_info_text, COLOR_TEXT, 0);
     lv_obj_set_style_text_align(s_info_text, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(s_info_text, LV_LABEL_LONG_WRAP);
@@ -264,7 +265,7 @@ void buddy_ui_init() {
     lv_obj_align(pk_icon, LV_ALIGN_CENTER, 0, -50);
 
     s_passkey_title = lv_label_create(s_passkey_container);
-    lv_obj_set_style_text_font(s_passkey_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s_passkey_title, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_passkey_title, COLOR_DIM, 0);
     lv_label_set_text(s_passkey_title, "Enter on desktop:");
     lv_obj_align(s_passkey_title, LV_ALIGN_CENTER, 0, -15);

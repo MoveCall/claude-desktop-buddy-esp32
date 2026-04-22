@@ -75,9 +75,9 @@ void BuddyApp::Initialize() {
 void BuddyApp::Run() {
     auto* backlight = Board::GetInstance().GetBacklight();
 
-    uint32_t last_activity = now_ms();
     uint32_t last_passkey = 0;
     uint32_t last_energy_decay = now_ms();
+    last_activity_ms_ = now_ms();
     bool was_prompt = false;
 
     while (true) {
@@ -169,10 +169,10 @@ void BuddyApp::Run() {
 
         // Screen auto-off
         if (state_.has_prompt() || state_.connected || pk != 0) {
-            last_activity = now_ms();
+            last_activity_ms_ = now_ms();
         }
         if (backlight) {
-            uint32_t idle_ms = now_ms() - last_activity;
+            uint32_t idle_ms = now_ms() - last_activity_ms_;
             if (idle_ms > CONFIG_BUDDY_SCREEN_OFF_MS) {
                 backlight->SetBrightness(0);
             } else {
@@ -197,6 +197,7 @@ void BuddyApp::UpdatePersona() {
 }
 
 void BuddyApp::Approve() {
+    NotifyActivity();
     if (!state_.has_prompt() || approval_sent_) return;
     protocol_send_permission(state_.prompt_id, "once");
     approval_sent_ = true;
@@ -224,6 +225,7 @@ void BuddyApp::Approve() {
 }
 
 void BuddyApp::Deny() {
+    NotifyActivity();
     if (!state_.has_prompt() || approval_sent_) return;
     protocol_send_permission(state_.prompt_id, "deny");
     approval_sent_ = true;
@@ -242,8 +244,7 @@ void BuddyApp::Deny() {
 }
 
 void BuddyApp::OnButtonClick() {
-    auto* backlight = Board::GetInstance().GetBacklight();
-    if (backlight) backlight->RestoreBrightness();
+    NotifyActivity();
 
     if (state_.has_prompt() && !approval_sent_) {
         Approve();
@@ -251,10 +252,15 @@ void BuddyApp::OnButtonClick() {
 }
 
 void BuddyApp::OnButtonLongPress() {
-    auto* backlight = Board::GetInstance().GetBacklight();
-    if (backlight) backlight->RestoreBrightness();
+    NotifyActivity();
 
     if (state_.has_prompt() && !approval_sent_) {
         Deny();
     }
+}
+
+void BuddyApp::NotifyActivity() {
+    last_activity_ms_ = now_ms();
+    auto* backlight = Board::GetInstance().GetBacklight();
+    if (backlight) backlight->RestoreBrightness();
 }

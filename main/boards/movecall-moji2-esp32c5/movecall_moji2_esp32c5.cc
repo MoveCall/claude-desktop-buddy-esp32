@@ -3,6 +3,7 @@
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
+#include "es8311_buzzer.h"
 #include "buddy/core/buddy_app.h"
 #include "buddy/core/demo_mode.h"
 #include "buddy/pet/buddy_pet.h"
@@ -209,6 +210,7 @@ class MovecallMoji2ESP32C5 : public Board {
 private:
     Button boot_button_;
     Display* display_;
+    Es8311Buzzer* buzzer_;
 
     void InitializeSpi() {
         const spi_bus_config_t bus_config = MOJI2_ST77916_PANEL_BUS_QSPI_CONFIG(
@@ -255,6 +257,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            app.NotifyActivity();
             if (app.GetState().has_prompt()) {
                 app.Approve();
             } else {
@@ -265,6 +268,7 @@ private:
             BuddyApp::GetInstance().Deny();
         });
         boot_button_.OnDoubleClick([]() {
+            BuddyApp::GetInstance().NotifyActivity();
             uint8_t next = (buddy_pet_get_species() + 1) % buddy_pet_species_count();
             buddy_pet_set_species(next);
             buddy_nvs_save_species(next);
@@ -280,6 +284,11 @@ public:
         InitializeSpi();
         InitializeSt77916Display();
         InitializeButtons();
+        buzzer_ = new Es8311Buzzer(
+            AUDIO_CODEC_I2C_SDA_PIN, AUDIO_CODEC_I2C_SCL_PIN, 0x18,
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT,
+            AUDIO_CODEC_PA_PIN);
         GetBacklight()->RestoreBrightness();
     }
 
@@ -291,6 +300,8 @@ public:
     }
 
     virtual Display* GetDisplay() override { return display_; }
+
+    virtual Buzzer* GetBuzzer() override { return buzzer_; }
 
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
