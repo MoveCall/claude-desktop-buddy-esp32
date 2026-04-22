@@ -19,13 +19,13 @@ ESP32 companion device for Claude Desktop over BLE. Approve permissions, view se
 
 ## Supported Hardware
 
-| Board | Chip | Display | Status |
-|-------|------|---------|--------|
-| **Movecall CuiCan 璀璨·AI吊坠** | ESP32-S3 | GC9A01 240×240 round | ✅ Verified |
-| **Movecall Moji** | ESP32-S3 | GC9A01 240×240 round | ✅ Verified |
-| **Movecall Moji2** | ESP32-C5 | ST77916 360×360 QSPI round | ✅ Verified |
+| Board | Chip | Display | Adapted | Verified |
+|-------|------|---------|---------|----------|
+| **movecall-cuican-esp32s3** | ESP32-S3 | GC9A01 240×240 round | ✅ | ✅ |
+| **movecall-moji-esp32s3** | ESP32-S3 | GC9A01 240×240 round | ✅ | ✅ |
+| **movecall-moji2-esp32c5** | ESP32-C5 | ST77916 360×360 QSPI round | ✅ | ✅ |
 
-More [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) compatible boards can be added — the board abstraction layer supports 70+ hardware variants.
+More [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) compatible boards can be added — the board abstraction layer supports 100+ hardware variants. See [HARDWARE.md](docs/HARDWARE.md) for the full compatibility list.
 
 ## Quick Start
 
@@ -36,27 +36,23 @@ More [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) compatible boards can 
 
 ### Build & Flash
 
-**CuiCan / Moji (ESP32-S3):**
+**ESP32-S3 boards (CuiCan, Moji):**
 
 ```bash
 idf.py set-target esp32s3
+idf.py menuconfig  # Claude Desktop Buddy → Board Type → select your board
 idf.py build
 idf.py -p PORT flash
 ```
 
-Edit `sdkconfig.defaults` to select your board:
-- `CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3=y` (default)
-- `CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3=y`
-
-For Moji boards, also enable USB console: `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`
-
-**Moji2 (ESP32-C5):**
+**ESP32-C5 boards (Moji2):**
 
 ```bash
-idf.py -B build_c5 set-target esp32c5
-idf.py -B build_c5 build
+idf.py set-target esp32c5
+idf.py menuconfig  # Board Type is auto-selected for C5
+idf.py build
 # Enter boot mode: unplug USB → hold BOOT → plug USB → release BOOT
-python -m esptool --chip esp32c5 -p PORT --no-stub write_flash @build_c5/flash_args
+idf.py -p PORT flash
 # Unplug and replug USB normally to start
 ```
 
@@ -109,10 +105,7 @@ Implements the [Claude Desktop Hardware Buddy protocol](https://github.com/anthr
 
 ## Adding a New Board
 
-1. Create `main/boards/<board-name>/config.h` with pin definitions
-2. Create `main/boards/<board-name>/<board>.cc` extending `Board`
-3. Add the board to `main/Kconfig.projbuild` and `main/CMakeLists.txt`
-4. See existing boards for reference
+See [docs/ADDING_A_BOARD.md](docs/ADDING_A_BOARD.md) for a step-by-step guide.
 
 ## License
 

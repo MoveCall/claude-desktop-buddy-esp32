@@ -7,13 +7,13 @@ choice BOARD_TYPE
         Select the target hardware board.
 
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
-        bool "Movecall CuiCan 璀璨·AI吊坠"
+        bool "Movecall CuiCan (ESP32-S3, GC9A01 240x240)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
-        bool "Movecall Moji"
+        bool "Movecall Moji (ESP32-S3, GC9A01 240x240)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MOVECALL_MOJI2_ESP32C5
-        bool "Movecall Moji2.0"
+        bool "Movecall Moji2 (ESP32-C5, ST77916 360x360)"
         depends on IDF_TARGET_ESP32C5
 endchoice
 

@@ -1,5 +1,6 @@
 #include "buddy_app.h"
 #include "protocol_handler.h"
+#include "demo_mode.h"
 #include "../ble/nus_service.h"
 #include "../ui/buddy_ui.h"
 #include "../storage/buddy_nvs.h"
@@ -73,7 +74,12 @@ void BuddyApp::Run() {
     bool was_prompt = false;
 
     while (true) {
-        protocol_poll(&state_);
+        // Demo mode overrides protocol
+        if (demo_mode_active()) {
+            demo_mode_tick();
+        } else {
+            protocol_poll(&state_);
+        }
         UpdatePersona();
 
         // Reset approval_sent when prompt clears

@@ -4,6 +4,7 @@
 #include "config.h"
 #include "led/single_led.h"
 #include "buddy/core/buddy_app.h"
+#include "buddy/core/demo_mode.h"
 #include "buddy/pet/buddy_pet.h"
 #include "buddy/ui/buddy_ui.h"
 #include "buddy/storage/buddy_nvs.h"
@@ -268,6 +269,10 @@ private:
             buddy_pet_set_species(next);
             buddy_nvs_save_species(next);
         });
+        boot_button_.OnMultipleClick([]() {
+            if (demo_mode_active()) demo_mode_stop();
+            else demo_mode_start();
+        }, 3);
     }
 
 public:
