@@ -17,6 +17,7 @@ set(SOURCES
     "led/gpio_led.cc"
     "boards/common/board.cc"
     "boards/common/backlight.cc"
+    "boards/common/buzzer.cc"
     "boards/common/button.cc"
     "boards/common/system_reset.cc"
     "settings.cc"
@@ -40,6 +41,22 @@ elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI2_ESP32C5)
     set(BOARD_TYPE "movecall-moji2-esp32c5")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
+    set(BOARD_TYPE "esp-box-3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
+    set(BOARD_TYPE "m5stack-core-s3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
+    set(BOARD_TYPE "lilygo-t-circle-s3")
+    set(BUILTIN_TEXT_FONT font_puhui_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_AMOLED_1_8)
+    set(BOARD_TYPE "waveshare-esp32s3-touch-amoled-1.8")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
 endif()
@@ -76,6 +93,8 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_driver_gpio
                         esp_driver_spi
+                        esp_driver_i2c
+                        esp_driver_ledc
                         spi_flash
                         efuse
                         bt

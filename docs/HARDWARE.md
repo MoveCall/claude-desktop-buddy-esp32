@@ -14,7 +14,7 @@
 
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
-| esp-box-3 | ESP32-S3 | | |
+| esp-box-3 | ESP32-S3 | ✅ | |
 | esp-box | ESP32-S3 | | |
 | esp-box-lite | ESP32-S3 | | |
 | esp32s3-korvo2-v3 | ESP32-S3 | | |
@@ -32,7 +32,7 @@
 
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
-| m5stack-core-s3 | ESP32-S3 | | |
+| m5stack-core-s3 | ESP32-S3 | ✅ | |
 | m5stack-tab5 | ESP32-P4 | | |
 | atoms3-echo-base | ESP32-S3 | | |
 | atoms3r-echo-base | ESP32-S3 | | |
@@ -45,7 +45,7 @@
 
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
-| esp32-s3-touch-amoled-1.8 | ESP32-S3 | | |
+| esp32-s3-touch-amoled-1.8 | ESP32-S3 | ✅ | |
 | esp32-s3-touch-amoled-1.43c | ESP32-S3 | | |
 | esp32-s3-touch-amoled-2.06 | ESP32-S3 | | |
 | esp32-s3-touch-amoled-1.75 | ESP32-S3 | | |
@@ -82,7 +82,7 @@
 
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
-| lilygo-t-circle-s3 | ESP32-S3 | | |
+| lilygo-t-circle-s3 | ESP32-S3 | ✅ | |
 | lilygo-t-cameraplus-s3 | ESP32-S3 | | |
 | lilygo-t-display-s3-pro-mvsrlora | ESP32-S3 | | |
 | lilygo-t-display-p4 | ESP32-P4 | | |

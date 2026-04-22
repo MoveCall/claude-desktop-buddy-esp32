@@ -38,34 +38,57 @@ static const char* CAT_HEART[] = {
 };
 
 // === DUCK ===
-static const char* DUCK_SLEEP[] = {
-    " (__)\n (-.-)\n~(___)~",
-    " (__)\n (-.-)\n~~(___)~",
+static const char* DUCK_SLEEP_F[] = {
+    " (__)\n (-.-)\n~(___)~",          // 0: tuck
+    " (__)\n (-.-)\n~~(___)~",         // 1: breathe
+    " (__)\n (o.)\n~(___)~",           // 2: snore
+    " (__)\n (uu)\n~~(___)~",          // 3: dream
 };
-static const char* DUCK_IDLE[] = {
-    " (__)\n (o o)\n>(___)>",
-    " (__)\n (- -)\n>(___)>",
+static const uint8_t DUCK_SLEEP_SEQ[] = { 0,0,1,0,1,2,1, 0,1,0,1, 3,3,0,0 };
+
+static const char* DUCK_IDLE_F[] = {
+    " (__)\n (o o)\n>(___)>",          // 0: rest
+    " (__)\n (o  )\n>(___)>",          // 1: look L
+    " (__)\n (  o)\n>(___)>",          // 2: look R
+    " (__)\n (- -)\n>(___)>",          // 3: blink
+    " (__)\nO(o o)\n>(___)>",          // 4: quack
 };
-static const char* DUCK_BUSY[] = {
+static const uint8_t DUCK_IDLE_SEQ[] = { 0,0,0,3,0,1,0,2,0, 4,0,0, 0,3,0,1,2,0 };
+
+static const char* DUCK_BUSY_F[] = {
     " (__)\n (o o)\n>(___)> !",
     " (__)\n (o o)\n<(___)< .",
+    " (__)\n (o o)\n>(___)> .",
 };
-static const char* DUCK_ATTENTION[] = {
+static const uint8_t DUCK_BUSY_SEQ[] = { 0,1,0,1, 2,0, 1,0,1,2 };
+
+static const char* DUCK_ATT_F[] = {
     "  !\n (__)\n (O O)\n>(___)>",
     " !!\n (__)\n (O O)\n<(___)<",
+    " (__)\n (O O)!\n>(___)>",
 };
-static const char* DUCK_CELEBRATE[] = {
+static const uint8_t DUCK_ATT_SEQ[] = { 0,2,0,1,0,2, 1,0,1,0 };
+
+static const char* DUCK_CEL_F[] = {
     "~\n (__)\n (^ ^)\n>(___)>*",
     "   ~\n (__)\n (* *)\n*<(___)<",
+    " (__)\n (^ ^)~\n>(___)>",
 };
-static const char* DUCK_DIZZY[] = {
+static const uint8_t DUCK_CEL_SEQ[] = { 0,1,0,1, 2,0, 1,2 };
+
+static const char* DUCK_DIZ_F[] = {
     " (__)\n (@ @)\n~(___)~",
     " (__)\n (x @)\n~(___)~",
+    " (__)\n (@ x)\n~(___)~",
 };
-static const char* DUCK_HEART[] = {
+static const uint8_t DUCK_DIZ_SEQ[] = { 0,1,0,2, 1,0,2,0 };
+
+static const char* DUCK_HRT_F[] = {
     "  v\n (__)\n (^ ^)\n>(___)>",
     " v\n (__)\n (u u)\n>(___)>",
+    " (__)\n (^ ^)v\n>(___)>",
 };
+static const uint8_t DUCK_HRT_SEQ[] = { 0,0,1,0, 2,2,0, 1,0 };
 
 // === PENGUIN ===
 static const char* PENG_SLEEP[] = {
@@ -517,32 +540,235 @@ static const char* CHONK_HEART[] = {
     ".------.\n( u.__. u)\n`--vv--'",
 };
 
+// === AXOLOTL ===
+static const char* AXOL_SLEEP[] = {
+    " ~(-.-)~\n  /|||\\",
+    " ~(-.-)~\n  \\|||/",
+};
+static const char* AXOL_IDLE[] = {
+    " ~(o.o)~\n  /|||\\",
+    " ~(-.-)~\n  /|||\\",
+};
+static const char* AXOL_BUSY[] = {
+    " ~(o.o)~>\n  /|||\\",
+    "<~(o.o)~\n  /|||\\",
+};
+static const char* AXOL_ATTENTION[] = {
+    " ~(O.O)~!\n  /|||\\",
+    "!~(O.O)~\n  /|||\\",
+};
+static const char* AXOL_CELEBRATE[] = {
+    "*~(^.^)~*\n  /|||\\",
+    " ~(^.^)~\n  /|*|\\",
+};
+static const char* AXOL_DIZZY[] = {
+    " ~(@.@)~\n  /|||\\",
+    " ~(x.@)~\n  \\|||/",
+};
+static const char* AXOL_HEART[] = {
+    " ~(^.^)~v\n  /|||\\",
+    "v~(u.u)~\n  /|||\\",
+};
+
+struct StateAnim {
+    const char** frames;
+    uint8_t frame_count;
+    const uint8_t* seq;
+    uint8_t seq_len;
+    uint8_t beat_div;  // tick divider (higher = slower)
+};
+
 struct SpeciesData {
-    const char** frames[7];
+    const char* name;
+    StateAnim states[7];
+};
+
+// Helper: simple 2-frame alternating (for species not yet enhanced)
+#define ANIM2(f, spd) { f, 2, nullptr, 0, spd }
+// Helper: SEQ-based animation
+#define ANIM_SEQ(f, fc, s, sl, spd) { f, fc, s, sl, spd }
+
+// === CAT enhanced sequences (ported from original) ===
+
+// Sleep: 6 poses, loaf/breathe/curl cycle
+static const char* CAT_SLEEP_F[] = {
+    " .-..-.\n( -.- )\n`------`",       // 0: loaf
+    " .-..-.\n( -.- )_\n`~------'",     // 1: breathe
+    "  .-/\\.\n(  ..  ))\n `~~~~~~`",   // 2: curl
+    "  .-/\\.\n(  ..  ))\n `~~~~~~`~",  // 3: curl twitch
+    " .-..-.\n( u.u )\n`~------'",      // 4: purr
+    " .-..-.\n( o.o )\n`------`",       // 5: dream
+};
+static const uint8_t CAT_SLEEP_SEQ[] = {
+    0,1,0,1,0,1, 4,4,0,1, 2,3,2,3,2,3, 5,5, 0,1,0,1, 3,3,2,2
+};
+
+// Idle: 10 poses, sassy micro-actions
+static const char* CAT_IDLE_F[] = {
+    " /\\_/\\\n( o o )\n(  w  )\n(\")_(\")",    // 0: rest
+    " /\\_/\\\n(o   o )\n(  w  )\n(\")_(\")",   // 1: look left
+    " /\\_/\\\n( o   o)\n(  w  )\n(\")_(\")",   // 2: look right
+    " /\\_/\\\n( -  - )\n(  w  )\n(\")_(\")",   // 3: blink
+    " /\\-/\\\n( _  _ )\n(  w  )\n(\")_(\")",   // 4: slow blink
+    " <\\_/\\\n( o  o )\n(  w  )\n(\")_(\")",   // 5: ear left
+    " /\\_/>\n( o  o )\n(  w  )\n(\")_(\")",    // 6: ear right
+    " /\\_/\\\n( o  o )\n(  w  )\n(\")_(\")\x7e", // 7: tail left
+    " /\\_/\\\n( o  o )\n(  w  )\n\x7e(\")_(\")", // 8: tail right
+    " /\\_/\\\n( ^  ^ )\n(  P  )\n(\")_(\")",   // 9: groom
+};
+static const uint8_t CAT_IDLE_SEQ[] = {
+    0,0,0,3,0,1,0,2,0, 7,8,7,8,7, 0,5,0,6,0, 4,4,0, 9,9,9,0, 0,3,0, 8,7,8,7, 0,0,4,0
+};
+
+// Busy: 6 poses, pawing things off table
+static const char* CAT_BUSY_F[] = {
+    " /\\_/\\\n( o o )\n(  w  )/\n(\")_(\")",   // 0: paw up
+    " /\\_/\\\n( o o )\n(  w  )_\n(\")_(\")",   // 1: paw tap
+    " /\\_/\\\n( O O )\n(  w  )\n(\")_(\")",    // 2: stare
+    " /\\_/\\\n( o o )\n( -w  )\n(\")_(\")",    // 3: nudge
+    " /\\_/\\\n( o o )\n(-w   )\n(\")_(\")",    // 4: shove
+    " /\\_/\\\n( -  - )\n(  w  )\n(\")_(\")",   // 5: smug
+};
+static const uint8_t CAT_BUSY_SEQ[] = {
+    2,2,2, 0,1,0,1, 3,4,3,4, 5,5, 2,2, 0,1,0,1, 5,2
+};
+
+// Attention: 6 poses, ears up dilated pupils
+static const char* CAT_ATT_F[] = {
+    " /^_^\\\n( O O )\n(  v  )\n(\")_(\")",    // 0: alert
+    " /^_^\\\n(O   O )\n(  v  )\n(\")_(\")",   // 1: scan left
+    " /^_^\\\n( O   O)\n(  v  )\n(\")_(\")",   // 2: scan right
+    " /^_^\\\n( ^  ^ )\n(  v  )\n(\")_(\")",   // 3: scan up
+    " /^_^\\\n( O O )\n(  v  )\n/(\")\\_(\")\\", // 4: crouch
+    " /^_^\\\n( O O )\n(  >  )\n(\")_(\")",    // 5: hiss
+};
+static const uint8_t CAT_ATT_SEQ[] = {
+    0,4,0,1,0,2,0,3, 4,4,0,1,2,0, 5,0
+};
+
+// Celebrate: 6 poses, zoomies
+static const char* CAT_CEL_F[] = {
+    " /\\_/\\\n( ^ ^ )\n(  W  )\n/(\")_(\")\\" , // 0: crouch
+    "\\^ ^/\n /\\_/\\\n( ^ ^ )\n(  W  )",       // 1: jump
+    "\\^ ^/\n /\\_/\\\n( * * )\n(  W  )",        // 2: peak
+    " /\\_/\\\n( < < )\n(  W  ) /\n~(\")_(\")",  // 3: spin L
+    " /\\_/\\\n( > > )\n\\(  W  )\n(\")_(\")\x7e", // 4: spin R
+    " \\o/\n /\\_/\\\n( ^ ^ )\n/(  W  )\\",      // 5: pose
+};
+static const uint8_t CAT_CEL_SEQ[] = {
+    0,1,2,1,0, 3,4,3,4, 0,1,2,1,0, 5,5
+};
+
+// Dizzy: 5 poses, chasing tail
+static const char* CAT_DIZ_F[] = {
+    " /\\_/\\\n( @ @ )\n( ~~  )\n(\")_(\")",    // 0: tilt L
+    " /\\_/\\\n( @ @ )\n( ~~  )\n(\")_(\")",    // 1: tilt R
+    " /\\_/\\\n( x @ )\n(  v  )\n(\")_(\")\x7e", // 2: woozy
+    " /\\_/\\\n( @ x )\n(  v  )\n\x7e(\")_(\")", // 3: woozy2
+    " /\\_/\\\n( @ @ )\n(  -  )\n/(\")_(\")\\" , // 4: splat
+};
+static const uint8_t CAT_DIZ_SEQ[] = {
+    0,1,0,1, 2,3, 0,1,0,1, 4,4, 2,3
+};
+
+// Heart: 5 poses, smitten purr
+static const char* CAT_HRT_F[] = {
+    " /\\_/\\\n( ^ ^ )\n(  u  )\n(\")_(\")\x7e", // 0: dreamy
+    " /\\_/\\\n(#^ ^#)\n(  u  )\n(\")_(\")",    // 1: blush
+    " /\\_/\\\n( <3<3 )\n(  u  )\n(\")_(\")\x7e", // 2: heart eyes
+    " /\\-/\\\n( ~ ~ )\n(  u  )\n\x7e(\")_(\")~", // 3: purr
+    " /\\_/\\\n( ^ - )\n(  u  )\n(\")_(\")",    // 4: head tilt
+};
+static const uint8_t CAT_HRT_SEQ[] = {
+    0,0,1,0, 2,2,0, 1,0,4, 0,0,3,3, 0,1,0,2, 1,0
 };
 
 static const SpeciesData SPECIES[] = {
-    {{ CAT_SLEEP, CAT_IDLE, CAT_BUSY, CAT_ATTENTION, CAT_CELEBRATE, CAT_DIZZY, CAT_HEART }},
-    {{ DUCK_SLEEP, DUCK_IDLE, DUCK_BUSY, DUCK_ATTENTION, DUCK_CELEBRATE, DUCK_DIZZY, DUCK_HEART }},
-    {{ PENG_SLEEP, PENG_IDLE, PENG_BUSY, PENG_ATTENTION, PENG_CELEBRATE, PENG_DIZZY, PENG_HEART }},
-    {{ GHOST_SLEEP, GHOST_IDLE, GHOST_BUSY, GHOST_ATTENTION, GHOST_CELEBRATE, GHOST_DIZZY, GHOST_HEART }},
-    {{ ROBOT_SLEEP, ROBOT_IDLE, ROBOT_BUSY, ROBOT_ATTENTION, ROBOT_CELEBRATE, ROBOT_DIZZY, ROBOT_HEART }},
-    {{ BLOB_SLEEP, BLOB_IDLE, BLOB_BUSY, BLOB_ATTENTION, BLOB_CELEBRATE, BLOB_DIZZY, BLOB_HEART }},
-    {{ OCTO_SLEEP, OCTO_IDLE, OCTO_BUSY, OCTO_ATTENTION, OCTO_CELEBRATE, OCTO_DIZZY, OCTO_HEART }},
-    {{ CAPY_SLEEP, CAPY_IDLE, CAPY_BUSY, CAPY_ATTENTION, CAPY_CELEBRATE, CAPY_DIZZY, CAPY_HEART }},
-    {{ DRAG_SLEEP, DRAG_IDLE, DRAG_BUSY, DRAG_ATTENTION, DRAG_CELEBRATE, DRAG_DIZZY, DRAG_HEART }},
-    {{ GOOSE_SLEEP, GOOSE_IDLE, GOOSE_BUSY, GOOSE_ATTENTION, GOOSE_CELEBRATE, GOOSE_DIZZY, GOOSE_HEART }},
-    {{ OWL_SLEEP, OWL_IDLE, OWL_BUSY, OWL_ATTENTION, OWL_CELEBRATE, OWL_DIZZY, OWL_HEART }},
-    {{ RABB_SLEEP, RABB_IDLE, RABB_BUSY, RABB_ATTENTION, RABB_CELEBRATE, RABB_DIZZY, RABB_HEART }},
-    {{ TURT_SLEEP, TURT_IDLE, TURT_BUSY, TURT_ATTENTION, TURT_CELEBRATE, TURT_DIZZY, TURT_HEART }},
-    {{ SNAIL_SLEEP, SNAIL_IDLE, SNAIL_BUSY, SNAIL_ATTENTION, SNAIL_CELEBRATE, SNAIL_DIZZY, SNAIL_HEART }},
-    {{ MUSH_SLEEP, MUSH_IDLE, MUSH_BUSY, MUSH_ATTENTION, MUSH_CELEBRATE, MUSH_DIZZY, MUSH_HEART }},
-    {{ CACT_SLEEP, CACT_IDLE, CACT_BUSY, CACT_ATTENTION, CACT_CELEBRATE, CACT_DIZZY, CACT_HEART }},
-    {{ CHONK_SLEEP, CHONK_IDLE, CHONK_BUSY, CHONK_ATTENTION, CHONK_CELEBRATE, CHONK_DIZZY, CHONK_HEART }},
+    // Cat — enhanced with full SEQ sequences
+    {"Cat", {
+        ANIM_SEQ(CAT_SLEEP_F, 6, CAT_SLEEP_SEQ, sizeof(CAT_SLEEP_SEQ), 5),
+        ANIM_SEQ(CAT_IDLE_F, 10, CAT_IDLE_SEQ, sizeof(CAT_IDLE_SEQ), 5),
+        ANIM_SEQ(CAT_BUSY_F, 6, CAT_BUSY_SEQ, sizeof(CAT_BUSY_SEQ), 5),
+        ANIM_SEQ(CAT_ATT_F, 6, CAT_ATT_SEQ, sizeof(CAT_ATT_SEQ), 5),
+        ANIM_SEQ(CAT_CEL_F, 6, CAT_CEL_SEQ, sizeof(CAT_CEL_SEQ), 3),
+        ANIM_SEQ(CAT_DIZ_F, 5, CAT_DIZ_SEQ, sizeof(CAT_DIZ_SEQ), 4),
+        ANIM_SEQ(CAT_HRT_F, 5, CAT_HRT_SEQ, sizeof(CAT_HRT_SEQ), 5),
+    }},
+    {"Duck", {
+        ANIM_SEQ(DUCK_SLEEP_F, 4, DUCK_SLEEP_SEQ, sizeof(DUCK_SLEEP_SEQ), 5),
+        ANIM_SEQ(DUCK_IDLE_F, 5, DUCK_IDLE_SEQ, sizeof(DUCK_IDLE_SEQ), 5),
+        ANIM_SEQ(DUCK_BUSY_F, 3, DUCK_BUSY_SEQ, sizeof(DUCK_BUSY_SEQ), 5),
+        ANIM_SEQ(DUCK_ATT_F, 3, DUCK_ATT_SEQ, sizeof(DUCK_ATT_SEQ), 4),
+        ANIM_SEQ(DUCK_CEL_F, 3, DUCK_CEL_SEQ, sizeof(DUCK_CEL_SEQ), 3),
+        ANIM_SEQ(DUCK_DIZ_F, 3, DUCK_DIZ_SEQ, sizeof(DUCK_DIZ_SEQ), 4),
+        ANIM_SEQ(DUCK_HRT_F, 3, DUCK_HRT_SEQ, sizeof(DUCK_HRT_SEQ), 5),
+    }},
+    {"Penguin", {
+        ANIM2(PENG_SLEEP, 10), ANIM2(PENG_IDLE, 15), ANIM2(PENG_BUSY, 5),
+        ANIM2(PENG_ATTENTION, 4), ANIM2(PENG_CELEBRATE, 3), ANIM2(PENG_DIZZY, 4), ANIM2(PENG_HEART, 8),
+    }},
+    {"Ghost", {
+        ANIM2(GHOST_SLEEP, 10), ANIM2(GHOST_IDLE, 15), ANIM2(GHOST_BUSY, 5),
+        ANIM2(GHOST_ATTENTION, 4), ANIM2(GHOST_CELEBRATE, 3), ANIM2(GHOST_DIZZY, 4), ANIM2(GHOST_HEART, 8),
+    }},
+    {"Robot", {
+        ANIM2(ROBOT_SLEEP, 10), ANIM2(ROBOT_IDLE, 15), ANIM2(ROBOT_BUSY, 5),
+        ANIM2(ROBOT_ATTENTION, 4), ANIM2(ROBOT_CELEBRATE, 3), ANIM2(ROBOT_DIZZY, 4), ANIM2(ROBOT_HEART, 8),
+    }},
+    {"Blob", {
+        ANIM2(BLOB_SLEEP, 10), ANIM2(BLOB_IDLE, 15), ANIM2(BLOB_BUSY, 5),
+        ANIM2(BLOB_ATTENTION, 4), ANIM2(BLOB_CELEBRATE, 3), ANIM2(BLOB_DIZZY, 4), ANIM2(BLOB_HEART, 8),
+    }},
+    {"Octopus", {
+        ANIM2(OCTO_SLEEP, 10), ANIM2(OCTO_IDLE, 15), ANIM2(OCTO_BUSY, 5),
+        ANIM2(OCTO_ATTENTION, 4), ANIM2(OCTO_CELEBRATE, 3), ANIM2(OCTO_DIZZY, 4), ANIM2(OCTO_HEART, 8),
+    }},
+    {"Capybara", {
+        ANIM2(CAPY_SLEEP, 10), ANIM2(CAPY_IDLE, 15), ANIM2(CAPY_BUSY, 5),
+        ANIM2(CAPY_ATTENTION, 4), ANIM2(CAPY_CELEBRATE, 3), ANIM2(CAPY_DIZZY, 4), ANIM2(CAPY_HEART, 8),
+    }},
+    {"Dragon", {
+        ANIM2(DRAG_SLEEP, 10), ANIM2(DRAG_IDLE, 15), ANIM2(DRAG_BUSY, 5),
+        ANIM2(DRAG_ATTENTION, 4), ANIM2(DRAG_CELEBRATE, 3), ANIM2(DRAG_DIZZY, 4), ANIM2(DRAG_HEART, 8),
+    }},
+    {"Goose", {
+        ANIM2(GOOSE_SLEEP, 10), ANIM2(GOOSE_IDLE, 15), ANIM2(GOOSE_BUSY, 5),
+        ANIM2(GOOSE_ATTENTION, 4), ANIM2(GOOSE_CELEBRATE, 3), ANIM2(GOOSE_DIZZY, 4), ANIM2(GOOSE_HEART, 8),
+    }},
+    {"Owl", {
+        ANIM2(OWL_SLEEP, 10), ANIM2(OWL_IDLE, 15), ANIM2(OWL_BUSY, 5),
+        ANIM2(OWL_ATTENTION, 4), ANIM2(OWL_CELEBRATE, 3), ANIM2(OWL_DIZZY, 4), ANIM2(OWL_HEART, 8),
+    }},
+    {"Rabbit", {
+        ANIM2(RABB_SLEEP, 10), ANIM2(RABB_IDLE, 15), ANIM2(RABB_BUSY, 5),
+        ANIM2(RABB_ATTENTION, 4), ANIM2(RABB_CELEBRATE, 3), ANIM2(RABB_DIZZY, 4), ANIM2(RABB_HEART, 8),
+    }},
+    {"Turtle", {
+        ANIM2(TURT_SLEEP, 10), ANIM2(TURT_IDLE, 15), ANIM2(TURT_BUSY, 5),
+        ANIM2(TURT_ATTENTION, 4), ANIM2(TURT_CELEBRATE, 3), ANIM2(TURT_DIZZY, 4), ANIM2(TURT_HEART, 8),
+    }},
+    {"Snail", {
+        ANIM2(SNAIL_SLEEP, 10), ANIM2(SNAIL_IDLE, 15), ANIM2(SNAIL_BUSY, 5),
+        ANIM2(SNAIL_ATTENTION, 4), ANIM2(SNAIL_CELEBRATE, 3), ANIM2(SNAIL_DIZZY, 4), ANIM2(SNAIL_HEART, 8),
+    }},
+    {"Mushroom", {
+        ANIM2(MUSH_SLEEP, 10), ANIM2(MUSH_IDLE, 15), ANIM2(MUSH_BUSY, 5),
+        ANIM2(MUSH_ATTENTION, 4), ANIM2(MUSH_CELEBRATE, 3), ANIM2(MUSH_DIZZY, 4), ANIM2(MUSH_HEART, 8),
+    }},
+    {"Cactus", {
+        ANIM2(CACT_SLEEP, 10), ANIM2(CACT_IDLE, 15), ANIM2(CACT_BUSY, 5),
+        ANIM2(CACT_ATTENTION, 4), ANIM2(CACT_CELEBRATE, 3), ANIM2(CACT_DIZZY, 4), ANIM2(CACT_HEART, 8),
+    }},
+    {"Chonk", {
+        ANIM2(CHONK_SLEEP, 10), ANIM2(CHONK_IDLE, 15), ANIM2(CHONK_BUSY, 5),
+        ANIM2(CHONK_ATTENTION, 4), ANIM2(CHONK_CELEBRATE, 3), ANIM2(CHONK_DIZZY, 4), ANIM2(CHONK_HEART, 8),
+    }},
+    {"Axolotl", {
+        ANIM2(AXOL_SLEEP, 10), ANIM2(AXOL_IDLE, 15), ANIM2(AXOL_BUSY, 5),
+        ANIM2(AXOL_ATTENTION, 4), ANIM2(AXOL_CELEBRATE, 3), ANIM2(AXOL_DIZZY, 4), ANIM2(AXOL_HEART, 8),
+    }},
 };
 
-static const uint8_t FRAME_COUNT = 2;
-static const uint8_t SPEEDS[] = { 10, 15, 5, 4, 3, 4, 8 };
 static const uint8_t NUM_SPECIES = sizeof(SPECIES) / sizeof(SPECIES[0]);
 
 void buddy_pet_init() {
@@ -563,6 +789,10 @@ uint8_t buddy_pet_species_count() {
     return NUM_SPECIES;
 }
 
+const char* buddy_pet_get_species_name() {
+    return SPECIES[s_species].name;
+}
+
 void buddy_pet_set_state(uint8_t persona_state) {
     if (persona_state != s_state) {
         s_state = persona_state;
@@ -573,7 +803,16 @@ void buddy_pet_set_state(uint8_t persona_state) {
 
 const char* buddy_pet_get_frame() {
     if (s_state >= 7) s_state = 1;
-    uint8_t speed = SPEEDS[s_state];
-    uint8_t frame_idx = (s_tick / speed) % FRAME_COUNT;
-    return SPECIES[s_species].frames[s_state][frame_idx];
+    const StateAnim& anim = SPECIES[s_species].states[s_state];
+    uint8_t beat = (s_tick / anim.beat_div);
+
+    uint8_t frame_idx;
+    if (anim.seq && anim.seq_len > 0) {
+        frame_idx = anim.seq[beat % anim.seq_len];
+    } else {
+        frame_idx = beat % anim.frame_count;
+    }
+
+    if (frame_idx >= anim.frame_count) frame_idx = 0;
+    return anim.frames[frame_idx];
 }

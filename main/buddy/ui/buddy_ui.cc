@@ -12,12 +12,18 @@
 #include "../pet/buddy_pet.h"
 #include "../pet/gif_character.h"
 #include "../ble/nus_service.h"
+#include "../core/buddy_app.h"
 #include <esp_system.h>
+#include <esp_mac.h>
 
 extern const lv_font_t BUILTIN_TEXT_FONT;
 extern const lv_font_t BUILTIN_ICON_FONT;
 
 #define TAG "buddy_ui"
+
+static uint32_t now_ms() {
+    return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
 
 // 240x240 round display — usable inscribed circle ~200px diameter
 // Safe content zone: centered 200x200, avoid corners
@@ -50,6 +56,7 @@ static lv_obj_t* s_action_label = nullptr;
 static lv_obj_t* s_dot = nullptr;
 static lv_obj_t* s_session_label = nullptr;
 static lv_obj_t* s_clock_label = nullptr;
+static lv_obj_t* s_particle_label = nullptr;
 static lv_obj_t* s_passkey_container = nullptr;
 static lv_obj_t* s_passkey_label = nullptr;
 static lv_obj_t* s_passkey_title = nullptr;
@@ -58,14 +65,12 @@ static lv_obj_t* s_passkey_title = nullptr;
 static lv_obj_t* s_info_panel = nullptr;
 static lv_obj_t* s_info_text = nullptr;
 
-// Display mode: 0=pet, 1=info
+// Display mode: 0=pet, 1+=info pages
 static uint8_t s_display_mode = 0;
+static const uint8_t INFO_PAGES = 5;
+static uint32_t s_mode_switch_ms = 0;
+static const uint32_t AUTO_RETURN_MS = 10000;  // stats, sessions, device
 
-static const char* SPECIES_NAMES[] = {
-    "Cat", "Duck", "Penguin", "Ghost", "Robot", "Octopus", "Blob",
-    "Capybara", "Dragon", "Goose", "Owl", "Rabbit", "Turtle",
-    "Snail", "Mushroom", "Cactus", "Chonk"
-};
 static PersonaState s_last_persona = PersonaState::SLEEP;
 static bool s_last_has_prompt = false;
 static bool s_last_connected = false;
@@ -178,6 +183,13 @@ void buddy_ui_init() {
     lv_obj_align(s_clock_label, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_flag(s_clock_label, LV_OBJ_FLAG_HIDDEN);
 
+    // --- Particle overlay (Zzz, !, etc) ---
+    s_particle_label = lv_label_create(s_screen);
+    lv_obj_set_style_text_font(s_particle_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(s_particle_label, COLOR_DIM, 0);
+    lv_label_set_text(s_particle_label, "");
+    lv_obj_align(s_particle_label, LV_ALIGN_CENTER, 50, -45);
+
     // --- Approval mode: tool name ---
     s_tool_label = lv_label_create(s_screen);
     lv_obj_set_width(s_tool_label, 170);
@@ -220,10 +232,10 @@ void buddy_ui_init() {
     lv_obj_set_scrollbar_mode(s_info_panel, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t* info_title = lv_label_create(s_info_panel);
-    lv_obj_set_style_text_font(info_title, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(info_title, COLOR_BLUE, 0);
-    lv_label_set_text(info_title, "Device Info");
-    lv_obj_align(info_title, LV_ALIGN_TOP_MID, 0, SAFE_TOP);
+    lv_obj_set_style_text_font(info_title, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(info_title, COLOR_DIM, 0);
+    lv_label_set_text(info_title, "Click to switch pages");
+    lv_obj_align(info_title, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
 
     s_info_text = lv_label_create(s_info_panel);
     lv_obj_set_width(s_info_text, 180);
@@ -233,12 +245,6 @@ void buddy_ui_init() {
     lv_label_set_long_mode(s_info_text, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_info_text, "");
     lv_obj_align(s_info_text, LV_ALIGN_CENTER, 0, 5);
-
-    lv_obj_t* info_hint = lv_label_create(s_info_panel);
-    lv_obj_set_style_text_font(info_hint, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(info_hint, COLOR_DIM, 0);
-    lv_label_set_text(info_hint, "Click to go back");
-    lv_obj_align(info_hint, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
 
     lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
 
@@ -292,43 +298,119 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
         lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
     }
 
-    // Info mode: update info text
-    if (s_display_mode == 1) {
-        char buf[256];
-        size_t heap = esp_get_free_heap_size();
-        uint32_t uptime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS / 1000);
+    // Auto-return to pet mode after 10s
+    if (s_display_mode > 0 && (now_ms() - s_mode_switch_ms > AUTO_RETURN_MS)) {
+        s_display_mode = 0;
+        lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
+    }
 
-        time_t now = time(nullptr);
-        struct tm* tm = localtime(&now);
-        char time_str[16] = "not synced";
-        if (tm->tm_year >= (2025 - 1900)) {
-            strftime(time_str, sizeof(time_str), "%H:%M:%S", tm);
+    // Info pages
+    if (s_display_mode >= 1) {
+        char buf[300];
+        auto& stats = BuddyApp::GetInstance().GetStats();
+
+        if (s_display_mode == 1) {
+            // Page 1: Pet Stats
+            // Hearts for mood
+            char hearts[12] = "";
+            for (int i = 0; i < 5; i++) hearts[i] = i < stats.mood ? 'v' : '.';
+            hearts[5] = '\0';
+            // Energy bars
+            char energy[12] = "";
+            for (int i = 0; i < 5; i++) energy[i] = i < stats.energy ? '|' : '.';
+            energy[5] = '\0';
+            // Fed pips
+            char fed_bar[12] = "";
+            for (int i = 0; i < 10; i++) fed_bar[i] = i < stats.fed ? '#' : '.';
+            fed_bar[10] = '\0';
+
+            snprintf(buf, sizeof(buf),
+                "Mood:   [%s]\n"
+                "Energy: [%s]\n"
+                "Fed:    [%s]\n"
+                "\n"
+                "Level: %d\n"
+                "Approved: %d\n"
+                "Denied: %d\n"
+                "Tokens: %lu\n"
+                "Pet: %s",
+                hearts, energy, fed_bar,
+                stats.level, stats.approvals, stats.denials,
+                (unsigned long)stats.tokens,
+                buddy_pet_get_species_name()
+            );
+        } else if (s_display_mode == 2) {
+            // Page 2: Session details
+            snprintf(buf, sizeof(buf),
+                "Sessions: %d total\n"
+                "  Running: %d\n"
+                "  Waiting: %d\n"
+                "\n"
+                "Tokens today: %lu\n"
+                "\n"
+                "Status: %s",
+                state.sessions_total,
+                state.sessions_running,
+                state.sessions_waiting,
+                (unsigned long)state.tokens_today,
+                state.msg
+            );
+        } else if (s_display_mode == 3) {
+            // Page 3: Device info
+            size_t heap = esp_get_free_heap_size();
+            uint32_t uptime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS / 1000);
+            time_t now = time(nullptr);
+            struct tm* tm = localtime(&now);
+            char time_str[16] = "not synced";
+            if (tm->tm_year >= (2025 - 1900)) {
+                strftime(time_str, sizeof(time_str), "%H:%M:%S", tm);
+            }
+
+            snprintf(buf, sizeof(buf),
+                "BLE: %s%s\n"
+                "Time: %s\n"
+                "Uptime: %lum %lus\n"
+                "Free heap: %uK\n"
+                "Pet: %s (#%d/%d)",
+                state.connected ? "Connected" : "Disconnected",
+                nus_secure() ? " (enc)" : "",
+                time_str,
+                (unsigned long)(uptime / 60), (unsigned long)(uptime % 60),
+                (unsigned)(heap / 1024),
+                buddy_pet_get_species_name(),
+                buddy_pet_get_species() + 1,
+                buddy_pet_species_count()
+            );
+        } else if (s_display_mode == 4) {
+            // Page 4: Bluetooth info
+            uint8_t mac[6];
+            esp_read_mac(mac, ESP_MAC_BT);
+            snprintf(buf, sizeof(buf),
+                "Bluetooth\n\n"
+                "MAC: %02X:%02X:%02X:%02X:%02X:%02X\n"
+                "Name: %s-%02X%02X\n"
+                "Paired: %s\n"
+                "Encrypted: %s\n"
+                "MTU: connected",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                CONFIG_BUDDY_DEVICE_NAME_PREFIX, mac[4], mac[5],
+                state.connected ? "Yes" : "No",
+                nus_secure() ? "Yes" : "No"
+            );
+        } else {
+            // Page 5: About
+            snprintf(buf, sizeof(buf),
+                "claude-desktop-buddy\n"
+                "        -esp32\n\n"
+                "Version: 0.2.0\n"
+                "Board: %s\n\n"
+                "github.com/MoveCall/\n"
+                "claude-desktop-\n"
+                "buddy-esp32",
+                BOARD_NAME
+            );
         }
 
-        snprintf(buf, sizeof(buf),
-            "BLE: %s%s\n"
-            "Sessions: %d total\n"
-            "  Running: %d\n"
-            "  Waiting: %d\n"
-            "Tokens today: %lu\n"
-            "\n"
-            "Time: %s\n"
-            "Uptime: %lum %lus\n"
-            "Free heap: %uK\n"
-            "Pet: %s (#%d/%d)",
-            state.connected ? "Connected" : "Disconnected",
-            nus_secure() ? " (encrypted)" : "",
-            state.sessions_total,
-            state.sessions_running,
-            state.sessions_waiting,
-            (unsigned long)state.tokens_today,
-            time_str,
-            (unsigned long)(uptime / 60), (unsigned long)(uptime % 60),
-            (unsigned)(heap / 1024),
-            SPECIES_NAMES[buddy_pet_get_species() % 17],
-            buddy_pet_get_species() + 1,
-            buddy_pet_species_count()
-        );
         lv_label_set_text(s_info_text, buf);
         lvgl_port_unlock();
         return;
@@ -356,6 +438,37 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
         const char* frame = buddy_pet_get_frame();
         lv_label_set_text(s_icon_label, frame);
         lv_obj_set_style_text_color(s_icon_label, persona_color(persona), 0);
+    }
+
+    // Particle effects
+    static uint32_t particle_tick = 0;
+    particle_tick++;
+    switch (persona) {
+        case PersonaState::SLEEP: {
+            const char* zzz[] = {"z", " Z", "  z"};
+            lv_label_set_text(s_particle_label, zzz[(particle_tick / 8) % 3]);
+            lv_obj_set_style_text_color(s_particle_label, COLOR_DIM, 0);
+            break;
+        }
+        case PersonaState::ATTENTION: {
+            lv_label_set_text(s_particle_label, (particle_tick / 4) & 1 ? "!" : "");
+            lv_obj_set_style_text_color(s_particle_label, COLOR_ORANGE, 0);
+            break;
+        }
+        case PersonaState::CELEBRATE: {
+            const char* conf[] = {"*", ".", "*", " "};
+            lv_label_set_text(s_particle_label, conf[(particle_tick / 3) % 4]);
+            lv_obj_set_style_text_color(s_particle_label, COLOR_GREEN, 0);
+            break;
+        }
+        case PersonaState::HEART: {
+            lv_label_set_text(s_particle_label, (particle_tick / 6) & 1 ? "v" : "");
+            lv_obj_set_style_text_color(s_particle_label, COLOR_PINK, 0);
+            break;
+        }
+        default:
+            lv_label_set_text(s_particle_label, "");
+            break;
     }
 
     if (persona != s_last_persona) {
@@ -433,13 +546,12 @@ void buddy_ui_hide_passkey() {
 void buddy_ui_next_mode() {
     if (!lvgl_port_lock(100)) return;
 
-    s_display_mode = (s_display_mode + 1) % 2;
+    s_display_mode = (s_display_mode + 1) % (1 + INFO_PAGES);
+    s_mode_switch_ms = now_ms();
 
     if (s_display_mode == 0) {
-        // Pet mode
         lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
     } else {
-        // Info mode
         lv_obj_remove_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
     }
 

@@ -29,4 +29,5 @@ private:
     uint32_t one_shot_until_ = 0;
     PersonaState one_shot_state_ = PersonaState::IDLE;
     bool approval_sent_ = false;
+    uint32_t prompt_start_ms_ = 0;
 };

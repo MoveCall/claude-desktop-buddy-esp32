@@ -23,6 +23,15 @@ void buddy_nvs_load_stats(BuddyStats* stats) {
     nvs_get_u16(s_handle, "deny", &stats->denials);
     nvs_get_u8(s_handle, "lvl", &stats->level);
     nvs_get_u32(s_handle, "tok", &stats->tokens);
+
+    size_t len = 8;
+    nvs_get_blob(s_handle, "vel", stats->velocity, &len);
+    nvs_get_u8(s_handle, "vel_i", &stats->vel_idx);
+    nvs_get_u8(s_handle, "vel_n", &stats->vel_count);
+
+    stats->update_mood();
+    stats->update_fed();
+    stats->update_level();
 }
 
 void buddy_nvs_save_stats(const BuddyStats* stats) {
@@ -32,6 +41,9 @@ void buddy_nvs_save_stats(const BuddyStats* stats) {
     nvs_set_u16(s_handle, "deny", stats->denials);
     nvs_set_u8(s_handle, "lvl", stats->level);
     nvs_set_u32(s_handle, "tok", stats->tokens);
+    nvs_set_blob(s_handle, "vel", stats->velocity, 8);
+    nvs_set_u8(s_handle, "vel_i", stats->vel_idx);
+    nvs_set_u8(s_handle, "vel_n", stats->vel_count);
     nvs_commit(s_handle);
 }
 
