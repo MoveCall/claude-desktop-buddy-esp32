@@ -83,6 +83,7 @@ static void apply_json(const char* line, TamaState* out) {
     if (evt && cJSON_IsString(evt)) {
         ESP_LOGI(TAG, "Event: %s", evt->valuestring);
         s_last_live_ms = now_ms();
+        out->turn_count++;
         cJSON_Delete(doc);
         return;
     }

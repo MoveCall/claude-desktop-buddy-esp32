@@ -18,6 +18,7 @@ struct TamaState {
     char     prompt_id[40] = {};
     char     prompt_tool[20] = {};
     char     prompt_hint[44] = {};
+    uint16_t turn_count = 0;
 
     bool has_prompt() const { return prompt_id[0] != '\0'; }
 

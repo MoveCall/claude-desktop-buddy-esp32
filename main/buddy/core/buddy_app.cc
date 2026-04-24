@@ -94,6 +94,16 @@ void BuddyApp::Run() {
         }
         UpdatePersona();
 
+        // Turn event → brief BUSY animation pulse
+        static uint16_t last_turn = 0;
+        if (state_.turn_count != last_turn) {
+            last_turn = state_.turn_count;
+            if (one_shot_until_ == 0) {
+                one_shot_state_ = PersonaState::BUSY;
+                one_shot_until_ = now_ms() + 500;
+            }
+        }
+
         // Reset approval_sent when prompt clears
         if (!state_.has_prompt() && was_prompt) {
             approval_sent_ = false;

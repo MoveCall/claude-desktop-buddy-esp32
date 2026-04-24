@@ -68,7 +68,7 @@ static lv_obj_t* s_info_text = nullptr;
 
 // Display mode: 0=pet, 1+=info pages
 static uint8_t s_display_mode = 0;
-static const uint8_t INFO_PAGES = 5;
+static const uint8_t INFO_PAGES = 6;
 static uint32_t s_mode_switch_ms = 0;
 static const uint32_t AUTO_RETURN_MS = 10000;  // stats, sessions, device
 
@@ -398,7 +398,7 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
                 state.connected ? "Yes" : "No",
                 nus_secure() ? "Yes" : "No"
             );
-        } else {
+        } else if (s_display_mode == 5) {
             // Page 5: About
             snprintf(buf, sizeof(buf),
                 "claude-desktop-buddy\n"
@@ -410,6 +410,18 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
                 "buddy-esp32",
                 BOARD_NAME
             );
+        } else {
+            // Page 6: Activity Feed
+            int pos = 0;
+            pos += snprintf(buf + pos, sizeof(buf) - pos, "Activity\n\n");
+            if (state.n_lines == 0) {
+                pos += snprintf(buf + pos, sizeof(buf) - pos, "(no activity yet)");
+            } else {
+                int start = state.n_lines > 4 ? state.n_lines - 4 : 0;
+                for (int i = start; i < state.n_lines && pos < (int)sizeof(buf) - 2; i++) {
+                    pos += snprintf(buf + pos, sizeof(buf) - pos, "%s\n", state.lines[i]);
+                }
+            }
         }
 
         lv_label_set_text(s_info_text, buf);
