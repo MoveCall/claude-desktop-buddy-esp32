@@ -1,9 +1,7 @@
 # claude-desktop-buddy-esp32
 
-ESP32 companion device for Claude Desktop over BLE. Approve permissions, view session status, and interact with a desk pet from hardware. ESP-IDF based, with [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) hardware ecosystem compatibility.
-
 <p align="center">
-  <img src="docs/hero_v1.png" alt="Claude Desktop Buddy for ESP32" width="800">
+  <img src="docs/hero_v1.png" alt="Claude Desktop Buddy for ESP32" width="960">
 </p>
 
 <p align="center">
@@ -12,6 +10,8 @@ ESP32 companion device for Claude Desktop over BLE. Approve permissions, view se
   <img src="https://img.shields.io/badge/BLE-Nordic%20UART-purple">
   <img src="https://img.shields.io/badge/pets-18%20species-orange">
 </p>
+
+ESP32 companion device for Claude Desktop over BLE. Approve permissions, view session status, and interact with a desk pet from hardware. ESP-IDF based, with [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) hardware ecosystem compatibility.
 
 ## Features
 
