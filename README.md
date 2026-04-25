@@ -3,14 +3,21 @@
 ESP32 companion device for Claude Desktop over BLE. Approve permissions, view session status, and interact with a desk pet from hardware. ESP-IDF based, with [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) hardware ecosystem compatibility.
 
 <p align="center">
-  <img src="docs/demo.jpg" alt="Movecall boards running buddy firmware" width="600">
+  <img src="docs/hero_v1.png" alt="Claude Desktop Buddy for ESP32" width="800">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/ESP--IDF-v5.5.2+-blue">
+  <img src="https://img.shields.io/badge/license-MIT-green">
+  <img src="https://img.shields.io/badge/BLE-Nordic%20UART-purple">
+  <img src="https://img.shields.io/badge/pets-18%20species-orange">
 </p>
 
 ## Features
 
 - **Live session status** — see how many Claude Cowork/Code sessions are running, waiting, or completed
 - **Permission approval** — approve or deny tool calls right from the device button
-- **17 ASCII desk pets** — cat, duck, penguin, ghost, robot, octopus, blob, capybara, dragon, goose, owl, rabbit, turtle, snail, mushroom, cactus, chonk
+- **18 ASCII desk pets** — cat, duck, penguin, ghost, robot, octopus, blob, capybara, dragon, goose, owl, rabbit, turtle, snail, mushroom, cactus, chonk
 - **GIF character support** — push custom GIF characters from Claude Desktop
 - **Clock mode** — displays time when connected and idle
 - **LED feedback** — blinks on approval requests, flashes on approve/deny
@@ -72,6 +79,22 @@ idf.py -p PORT flash
 | **Long press** | — | Deny |
 | **Double click** | Switch pet species | Switch pet species |
 
+
+## BLE Protocol
+
+Implements the [Claude Desktop Hardware Buddy protocol](https://github.com/anthropics/claude-desktop-buddy/blob/main/REFERENCE.md):
+
+- Nordic UART Service (NUS) over BLE
+- JSON messages, newline-terminated
+- Heartbeat snapshots (sessions, tokens, entries)
+- Permission prompt forwarding and response
+- GIF character folder push transfer
+- LE Secure Connections with MITM protection
+
+## Adding a New Board
+
+See [docs/ADDING_A_BOARD.md](docs/ADDING_A_BOARD.md) for a step-by-step guide.
+
 ## Architecture
 
 ```
@@ -91,21 +114,6 @@ main/
 │   └── xfer/                     # BLE file transfer (LittleFS)
 └── main.cc
 ```
-
-## BLE Protocol
-
-Implements the [Claude Desktop Hardware Buddy protocol](https://github.com/anthropics/claude-desktop-buddy/blob/main/REFERENCE.md):
-
-- Nordic UART Service (NUS) over BLE
-- JSON messages, newline-terminated
-- Heartbeat snapshots (sessions, tokens, entries)
-- Permission prompt forwarding and response
-- GIF character folder push transfer
-- LE Secure Connections with MITM protection
-
-## Adding a New Board
-
-See [docs/ADDING_A_BOARD.md](docs/ADDING_A_BOARD.md) for a step-by-step guide.
 
 ## License
 
