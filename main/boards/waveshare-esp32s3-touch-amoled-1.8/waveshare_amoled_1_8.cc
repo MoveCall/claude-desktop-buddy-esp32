@@ -183,6 +183,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            if (app.IsScreenOff()) { app.NotifyActivity(); return; }
             app.NotifyActivity();
             if (app.GetState().has_prompt()) {
                 app.Approve();

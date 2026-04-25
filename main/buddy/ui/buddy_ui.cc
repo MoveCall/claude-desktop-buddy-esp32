@@ -13,6 +13,7 @@
 #include "../pet/gif_character.h"
 #include "../ble/nus_service.h"
 #include "../core/buddy_app.h"
+#include "boards/common/board.h"
 #include <esp_system.h>
 #include <esp_mac.h>
 
@@ -76,6 +77,13 @@ static PersonaState s_last_persona = PersonaState::SLEEP;
 static bool s_last_has_prompt = false;
 static bool s_last_connected = false;
 static uint8_t s_last_total = 255;
+
+// Settings menu
+static lv_obj_t* s_settings_panel = nullptr;
+static lv_obj_t* s_settings_text = nullptr;
+static bool s_settings_active = false;
+static uint8_t s_settings_cursor = 0;
+static const uint8_t SETTINGS_ITEMS = 5;
 
 static const char* persona_icon(PersonaState state) {
     switch (state) {
@@ -248,6 +256,36 @@ void buddy_ui_init() {
     lv_obj_align(s_info_text, LV_ALIGN_CENTER, 0, 5);
 
     lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
+
+    // --- Settings overlay ---
+    s_settings_panel = lv_obj_create(s_screen);
+    lv_obj_remove_style_all(s_settings_panel);
+    lv_obj_set_size(s_settings_panel, SCREEN_W, SCREEN_H);
+    lv_obj_set_style_bg_color(s_settings_panel, COLOR_BG, 0);
+    lv_obj_set_style_bg_opa(s_settings_panel, LV_OPA_COVER, 0);
+    lv_obj_center(s_settings_panel);
+
+    lv_obj_t* settings_title = lv_label_create(s_settings_panel);
+    lv_obj_set_style_text_font(settings_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(settings_title, COLOR_GREEN, 0);
+    lv_label_set_text(settings_title, "Settings");
+    lv_obj_align(settings_title, LV_ALIGN_TOP_MID, 0, SAFE_TOP);
+
+    s_settings_text = lv_label_create(s_settings_panel);
+    lv_obj_set_width(s_settings_text, 180);
+    lv_obj_set_style_text_font(s_settings_text, &font_puhui_14_1, 0);
+    lv_obj_set_style_text_color(s_settings_text, COLOR_TEXT, 0);
+    lv_obj_set_style_text_align(s_settings_text, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(s_settings_text, "");
+    lv_obj_align(s_settings_text, LV_ALIGN_CENTER, 0, 0);
+
+    lv_obj_t* settings_hint = lv_label_create(s_settings_panel);
+    lv_obj_set_style_text_font(settings_hint, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(settings_hint, COLOR_DIM, 0);
+    lv_label_set_text(settings_hint, "Click=Next  Hold=Toggle/Run");
+    lv_obj_align(settings_hint, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+
+    lv_obj_add_flag(s_settings_panel, LV_OBJ_FLAG_HIDDEN);
 
     // --- Passkey overlay ---
     s_passkey_container = lv_obj_create(s_screen);
@@ -446,11 +484,19 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
     if (gif_character_loaded()) {
         gif_character_set_state((uint8_t)persona);
         lv_label_set_text(s_icon_label, "");
+        // Apply GIF character theme colors
+        const auto& gc = gif_character_colors();
+        if (gc.valid) {
+            lv_obj_set_style_bg_color(s_screen, lv_color_hex(gc.bg), 0);
+            lv_obj_set_style_text_color(s_state_label, lv_color_hex(gc.text), 0);
+            lv_obj_set_style_text_color(s_status_label, lv_color_hex(gc.text_dim), 0);
+        }
     } else {
         buddy_pet_set_state((uint8_t)persona);
         const char* frame = buddy_pet_get_frame();
         lv_label_set_text(s_icon_label, frame);
         lv_obj_set_style_text_color(s_icon_label, persona_color(persona), 0);
+        lv_obj_set_style_bg_color(s_screen, COLOR_BG, 0);
     }
 
     // Particle effects
@@ -504,7 +550,7 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
         if (!s_last_has_prompt) {
             lv_label_set_text(s_tool_label, state.prompt_tool);
             lv_label_set_text(s_hint_label, state.prompt_hint);
-            lv_label_set_text(s_action_label, "Click = Yes    Hold = No");
+            lv_label_set_text(s_action_label, Board::GetInstance().GetApprovalHint());
             lv_obj_set_style_text_color(s_action_label, COLOR_GREEN, 0);
         }
     } else if (has_prompt && approval_sent) {
@@ -569,4 +615,80 @@ void buddy_ui_next_mode() {
     }
 
     lvgl_port_unlock();
+}
+
+static void settings_refresh() {
+    auto& settings = BuddyApp::GetInstance().GetSettings();
+    bool has_gif = gif_character_loaded();
+    char buf[200];
+    snprintf(buf, sizeof(buf),
+        "%s Sound: %s\n"
+        "%s LED: %s\n"
+        "%s Brightness: %d%%\n"
+        "%s Delete GIF char%s\n"
+        "%s Exit settings",
+        s_settings_cursor == 0 ? ">" : " ", settings.sound ? "ON" : "OFF",
+        s_settings_cursor == 1 ? ">" : " ", settings.led ? "ON" : "OFF",
+        s_settings_cursor == 2 ? ">" : " ", (settings.brightness * 100) / 255,
+        s_settings_cursor == 3 ? ">" : " ", has_gif ? "" : " (none)",
+        s_settings_cursor == 4 ? ">" : " "
+    );
+    lv_label_set_text(s_settings_text, buf);
+}
+
+void buddy_ui_show_settings() {
+    if (s_settings_active) {
+        s_settings_active = false;
+        if (!lvgl_port_lock(100)) return;
+        lv_obj_add_flag(s_settings_panel, LV_OBJ_FLAG_HIDDEN);
+        lvgl_port_unlock();
+        return;
+    }
+    s_settings_active = true;
+    s_settings_cursor = 0;
+    if (!lvgl_port_lock(100)) return;
+    settings_refresh();
+    lv_obj_remove_flag(s_settings_panel, LV_OBJ_FLAG_HIDDEN);
+    lvgl_port_unlock();
+}
+
+void buddy_ui_settings_next() {
+    if (!s_settings_active) return;
+    s_settings_cursor = (s_settings_cursor + 1) % SETTINGS_ITEMS;
+    if (!lvgl_port_lock(100)) return;
+    settings_refresh();
+    lvgl_port_unlock();
+}
+
+void buddy_ui_settings_select() {
+    if (!s_settings_active) return;
+    auto& settings = BuddyApp::GetInstance().GetSettings();
+    switch (s_settings_cursor) {
+        case 0: settings.sound = !settings.sound; break;
+        case 1: settings.led = !settings.led; break;
+        case 2:
+            settings.brightness += 64;
+            if (settings.brightness < 64) settings.brightness = 32;
+            Board::GetInstance().GetBacklight()->SetBrightness(
+                (settings.brightness * 100) / 255);
+            break;
+        case 3:
+            if (gif_character_loaded()) gif_character_close();
+            break;
+        case 4:
+            s_settings_active = false;
+            if (!lvgl_port_lock(100)) return;
+            lv_obj_add_flag(s_settings_panel, LV_OBJ_FLAG_HIDDEN);
+            lvgl_port_unlock();
+            buddy_nvs_save_settings(&settings);
+            return;
+    }
+    buddy_nvs_save_settings(&settings);
+    if (!lvgl_port_lock(100)) return;
+    settings_refresh();
+    lvgl_port_unlock();
+}
+
+bool buddy_ui_in_settings() {
+    return s_settings_active;
 }

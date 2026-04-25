@@ -16,7 +16,7 @@ Es8311Buzzer::Es8311Buzzer(gpio_num_t sda, gpio_num_t scl, uint8_t addr,
     : i2c_bus_(nullptr), codec_dev_(nullptr), tx_handle_(nullptr),
       pa_pin_(pa_pin), owns_i2c_(true), initialized_(false) {
     InitI2c(sda, scl);
-    InitCodec(addr);
+    InitCodec(addr, mclk != GPIO_NUM_NC);
     InitI2s(mclk, bclk, ws, dout);
     InitPa();
     initialized_ = true;
@@ -28,7 +28,7 @@ Es8311Buzzer::Es8311Buzzer(i2c_master_bus_handle_t i2c_bus, uint8_t addr,
                            gpio_num_t dout, gpio_num_t pa_pin)
     : i2c_bus_(i2c_bus), codec_dev_(nullptr), tx_handle_(nullptr),
       pa_pin_(pa_pin), owns_i2c_(false), initialized_(false) {
-    InitCodec(addr);
+    InitCodec(addr, mclk != GPIO_NUM_NC);
     InitI2s(mclk, bclk, ws, dout);
     InitPa();
     initialized_ = true;
@@ -66,7 +66,7 @@ void Es8311Buzzer::InitI2c(gpio_num_t sda, gpio_num_t scl) {
     ESP_ERROR_CHECK(i2c_new_master_bus(&cfg, &i2c_bus_));
 }
 
-void Es8311Buzzer::InitCodec(uint8_t addr) {
+void Es8311Buzzer::InitCodec(uint8_t addr, bool use_mclk) {
     i2c_device_config_t dev_cfg = {};
     dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     dev_cfg.device_address = addr;
@@ -79,15 +79,22 @@ void Es8311Buzzer::InitCodec(uint8_t addr) {
     WriteReg(0x00, 0x80);  // Power up, CSM_ON
     vTaskDelay(pdMS_TO_TICKS(20));
 
-    // Clock config for MCLK from I2S master (256*fs), 16kHz sample rate
-    WriteReg(0x01, 0x3F);  // CLK manager: all clocks on
-    WriteReg(0x02, 0x00);  // MCLK divider = 1 (MCLK = 256*fs)
-    WriteReg(0x03, 0x10);  // ADC osr = 128
-    WriteReg(0x04, 0x10);  // DAC osr = 128
-    WriteReg(0x05, 0x00);  // fs mode, no doubler
-    WriteReg(0x06, 0x07);  // BCLK divider for MCLK/BCLK = 8 (256fs / 32bit-frame = 8)
-    WriteReg(0x07, 0x00);  // BCLK divider MSB
-    WriteReg(0x08, 0xFF);  // MCLK divider for ADC/DAC clk
+    if (use_mclk) {
+        // MCLK mode: clock from MCLK pin (256*fs)
+        WriteReg(0x01, 0x3F);
+        WriteReg(0x02, 0x00);  // MCLK divider = 1
+        WriteReg(0x06, 0x07);  // BCLK divider = 8
+    } else {
+        // No MCLK: use BCLK as clock source
+        WriteReg(0x01, 0xBF);  // bit[7]=1: select BCLK as clock source
+        WriteReg(0x02, 0x00);
+        WriteReg(0x06, 0x01);  // BCLK divider = 1 (BCLK is the clock)
+    }
+    WriteReg(0x03, 0x10);  // ADC osr
+    WriteReg(0x04, 0x10);  // DAC osr
+    WriteReg(0x05, 0x00);
+    WriteReg(0x07, 0x00);
+    WriteReg(0x08, 0xFF);
 
     // SDP format: I2S, 16-bit
     WriteReg(0x09, 0x0C);  // SDP in: I2S, 16-bit

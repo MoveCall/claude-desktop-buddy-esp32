@@ -13,10 +13,12 @@ public:
     TamaState& GetState() { return state_; }
     PersonaState GetPersona() const { return active_state_; }
     BuddyStats& GetStats() { return stats_; }
+    BuddySettings& GetSettings() { return settings_; }
 
     void Approve();
     void Deny();
     void NotifyActivity();
+    bool IsScreenOff() const;
 
 private:
     void OnButtonClick();
@@ -25,6 +27,7 @@ private:
 
     TamaState state_ = {};
     BuddyStats stats_ = {};
+    BuddySettings settings_ = {};
     PersonaState base_state_ = PersonaState::IDLE;
     PersonaState active_state_ = PersonaState::IDLE;
     uint32_t one_shot_until_ = 0;

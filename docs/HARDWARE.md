@@ -32,7 +32,7 @@
 
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
-| m5stack-core-s3 | ESP32-S3 | ✅ | |
+| m5stack-core-s3 | ESP32-S3 | ✅ | ✅ |
 | m5stack-tab5 | ESP32-P4 | | |
 | atoms3-echo-base | ESP32-S3 | | |
 | atoms3r-echo-base | ESP32-S3 | | |
@@ -92,7 +92,7 @@
 | Board | Chip | Adapted | Verified |
 |-------|------|---------|----------|
 | magiclick-2p4 | ESP32-S3 | | |
-| magiclick-2p5 | ESP32-S3 | | |
+| magiclick-2p5 | ESP32-S3 | ✅ | ✅ |
 | magiclick-c3 | ESP32-C3 | | |
 | magiclick-c3-v2 | ESP32-C3 | | |
 
@@ -102,7 +102,7 @@
 |-------|------|---------|----------|
 | atk-dnesp32s3 | ESP32-S3 | | |
 | atk-dnesp32s3-box | ESP32-S3 | | |
-| atk-dnesp32s3-box0 | ESP32-S3 | | |
+| atk-dnesp32s3-box0 | ESP32-S3 | ✅ | ✅ |
 | atk-dnesp32s3-box2-wifi | ESP32-S3 | | |
 | atk-dnesp32s3-box2-4g | ESP32-S3 | | |
 | atk-dnesp32s3m-wifi | ESP32-S3 | | |

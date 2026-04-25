@@ -21,6 +21,7 @@ public:
     CircularStrip(gpio_num_t gpio, uint16_t max_leds);
     virtual ~CircularStrip();
 
+    using Led::Blink;
     void OnStateChanged() override;
     void SetBrightness(uint8_t default_brightness, uint8_t low_brightness);
     void SetAllColor(StripColor color);

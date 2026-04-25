@@ -24,6 +24,7 @@ static const uint8_t MAX_GIFS = 32;
 static bool s_loaded = false;
 static bool s_fs_mounted = false;
 static char s_base_path[48] = "";
+static GifColors s_colors;
 static char s_gif_paths[MAX_GIFS][32];
 static uint8_t s_state_start[N_STATES];
 static uint8_t s_state_count[N_STATES];
@@ -167,6 +168,24 @@ bool gif_character_init(const char* name) {
         }
     }
 
+    // Parse colors from manifest
+    s_colors = GifColors{};
+    cJSON* colors = cJSON_GetObjectItem(doc, "colors");
+    if (colors && cJSON_IsObject(colors)) {
+        auto parse_hex = [](cJSON* obj, const char* key, uint32_t& out) {
+            cJSON* v = cJSON_GetObjectItem(obj, key);
+            if (v && cJSON_IsString(v) && v->valuestring[0] == '#') {
+                out = (uint32_t)strtol(v->valuestring + 1, nullptr, 16);
+            }
+        };
+        parse_hex(colors, "bg", s_colors.bg);
+        parse_hex(colors, "text", s_colors.text);
+        parse_hex(colors, "textDim", s_colors.text_dim);
+        parse_hex(colors, "body", s_colors.body);
+        s_colors.valid = true;
+        ESP_LOGI(TAG, "Colors: bg=#%06lx text=#%06lx", (unsigned long)s_colors.bg, (unsigned long)s_colors.text);
+    }
+
     cJSON_Delete(doc);
     s_loaded = true;
     s_cur_state = 0xFF;
@@ -198,4 +217,9 @@ void gif_character_close() {
     }
     s_loaded = false;
     s_cur_state = 0xFF;
+    s_colors = GifColors{};
+}
+
+const GifColors& gif_character_colors() {
+    return s_colors;
 }

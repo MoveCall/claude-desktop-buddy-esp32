@@ -18,7 +18,7 @@ public:
 
 private:
     void InitI2c(gpio_num_t sda, gpio_num_t scl);
-    void InitCodec(uint8_t addr);
+    void InitCodec(uint8_t addr, bool use_mclk);
     void InitI2s(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout);
     void InitPa();
     void WriteReg(uint8_t reg, uint8_t val);

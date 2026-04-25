@@ -10,7 +10,7 @@
 #define TONE_BUF_SAMPLES 320
 
 I2sBuzzer::I2sBuzzer(gpio_num_t bclk, gpio_num_t lrclk, gpio_num_t dout,
-                     gpio_num_t enable_pin, i2s_port_t port)
+                     gpio_num_t enable_pin, i2s_port_t port, gpio_num_t mclk)
     : tx_handle_(nullptr), enable_pin_(enable_pin), initialized_(false) {
 
     if (enable_pin_ != GPIO_NUM_NC) {
@@ -45,7 +45,7 @@ I2sBuzzer::I2sBuzzer(gpio_num_t bclk, gpio_num_t lrclk, gpio_num_t dout,
             .bit_shift = true,
         },
         .gpio_cfg = {
-            .mclk = GPIO_NUM_NC,
+            .mclk = mclk,
             .bclk = bclk,
             .ws = lrclk,
             .dout = dout,

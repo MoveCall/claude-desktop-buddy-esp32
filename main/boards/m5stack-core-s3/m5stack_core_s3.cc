@@ -2,7 +2,6 @@
 #include "display/lcd_display.h"
 #include "button.h"
 #include "config.h"
-#include "i2s_buzzer.h"
 #include "buddy/core/buddy_app.h"
 #include "buddy/core/demo_mode.h"
 #include "buddy/pet/buddy_pet.h"
@@ -16,6 +15,13 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 #include <driver/i2c_master.h>
+#include <driver/i2s_std.h>
+#include <esp_lcd_touch_ft5x06.h>
+#include <esp_lvgl_port.h>
+#include <esp_codec_dev.h>
+#include <esp_codec_dev_defaults.h>
+#include <math.h>
+#include <string.h>
 
 #define TAG "M5StackCoreS3Buddy"
 
@@ -29,8 +35,6 @@ public:
         cfg.scl_speed_hz = 400000;
         ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &cfg, &handle_));
     }
-    ~I2cDev() { i2c_master_bus_rm_device(handle_); }
-
     uint8_t ReadReg(uint8_t reg) {
         uint8_t val = 0;
         ESP_ERROR_CHECK(i2c_master_transmit_receive(handle_, &reg, 1, &val, 1, -1));
@@ -40,7 +44,6 @@ public:
         uint8_t buf[2] = {reg, val};
         ESP_ERROR_CHECK(i2c_master_transmit(handle_, buf, 2, -1));
     }
-
 protected:
     i2c_master_dev_handle_t handle_;
 };
@@ -59,7 +62,6 @@ public:
         WriteReg(0x94, 33 - 5);
         WriteReg(0x95, 33 - 5);
     }
-
     void SetBrightness(uint8_t brightness) {
         brightness = ((brightness + 641) >> 5);
         WriteReg(0x99, brightness);
@@ -77,12 +79,17 @@ public:
         WriteReg(0x12, 0b11111111);
         WriteReg(0x13, 0b11111111);
     }
-
     void ResetLcd() {
         WriteReg(0x03, 0b10000001);
         vTaskDelay(pdMS_TO_TICKS(20));
         WriteReg(0x03, 0b10000011);
         vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    void ResetAw88298() {
+        WriteReg(0x02, 0b00000011);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        WriteReg(0x02, 0b00000111);
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 };
 
@@ -97,31 +104,127 @@ private:
     Pmic* pmic_;
 };
 
-class Aw88298 : public I2cDev {
+// AW88298 buzzer using esp_codec_dev framework
+class Aw88298Buzzer : public Buzzer {
 public:
-    Aw88298(i2c_master_bus_handle_t bus) : I2cDev(bus, AW88298_I2C_ADDR) {
-        WriteReg16(0x04, 0x4040);  // Volume
-        WriteReg16(0x05, 0x0008);  // SYSCTRL: I2S, 16-bit
-        WriteReg16(0x61, 0x0673);  // BSTCTRL
-        WriteReg16(0x04, 0x4040);  // Volume
-        WriteReg16(0x05, 0x0008);  // I2S mode enable
-        ESP_LOGI("AW88298", "AW88298 initialized");
+    Aw88298Buzzer(i2c_master_bus_handle_t i2c_bus, gpio_num_t mclk,
+                  gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout) {
+        // Create I2S TX channel
+        i2s_chan_config_t chan_cfg = {
+            .id = I2S_NUM_0,
+            .role = I2S_ROLE_MASTER,
+            .dma_desc_num = 4,
+            .dma_frame_num = 320,
+            .auto_clear_after_cb = true,
+        };
+        ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, nullptr));
+
+        i2s_std_config_t std_cfg = {
+            .clk_cfg = {
+                .sample_rate_hz = 16000,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            },
+            .slot_cfg = {
+                .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                .slot_mode = I2S_SLOT_MODE_STEREO,
+                .slot_mask = I2S_STD_SLOT_BOTH,
+                .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .ws_pol = false,
+                .bit_shift = true,
+            },
+            .gpio_cfg = {
+                .mclk = mclk,
+                .bclk = bclk,
+                .ws = ws,
+                .dout = dout,
+                .din = GPIO_NUM_NC,
+                .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
+            },
+        };
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+
+        // Init AW88298 via esp_codec_dev
+        audio_codec_i2s_cfg_t i2s_cfg = {
+            .port = I2S_NUM_0,
+            .rx_handle = nullptr,
+            .tx_handle = tx_handle_,
+        };
+        data_if_ = audio_codec_new_i2s_data(&i2s_cfg);
+
+        audio_codec_i2c_cfg_t i2c_cfg = {
+            .port = I2C_NUM_0,
+            .addr = AW88298_I2C_ADDR,
+            .bus_handle = i2c_bus,
+        };
+        ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
+        gpio_if_ = audio_codec_new_gpio();
+
+        aw88298_codec_cfg_t aw_cfg = {};
+        aw_cfg.ctrl_if = ctrl_if_;
+        aw_cfg.gpio_if = gpio_if_;
+        aw_cfg.reset_pin = GPIO_NUM_NC;
+        aw_cfg.hw_gain.pa_voltage = 5.0;
+        aw_cfg.hw_gain.codec_dac_voltage = 3.3;
+        aw_cfg.hw_gain.pa_gain = 1;
+        codec_if_ = aw88298_codec_new(&aw_cfg);
+
+        esp_codec_dev_cfg_t dev_cfg = {
+            .dev_type = ESP_CODEC_DEV_TYPE_OUT,
+            .codec_if = codec_if_,
+            .data_if = data_if_,
+        };
+        dev_ = esp_codec_dev_new(&dev_cfg);
+
+        esp_codec_dev_sample_info_t fs = {
+            .bits_per_sample = 16,
+            .channel = 1,
+            .channel_mask = 0,
+            .sample_rate = 16000,
+        };
+        esp_codec_dev_open(dev_, &fs);
+        esp_codec_dev_set_out_vol(dev_, 60);
+
+        ESP_LOGI(TAG, "AW88298 buzzer initialized via esp_codec_dev");
     }
 
-    void Enable() {
-        WriteReg16(0x04, 0x4040);
-        WriteReg16(0x05, 0x0009);  // PWDN=0, enable
-    }
+    void Tone(uint16_t freq_hz, uint16_t duration_ms) override {
+        if (!dev_) return;
+        if (freq_hz == 0) {
+            vTaskDelay(pdMS_TO_TICKS(duration_ms));
+            return;
+        }
 
-    void Disable() {
-        WriteReg16(0x05, 0x0008);  // PWDN=1
+        int16_t buf[320];
+        int total = (16000 * duration_ms) / 1000;
+        int written = 0;
+        float phase = 0.0f;
+        float inc = 2.0f * 3.14159265f * freq_hz / 16000.0f;
+
+        while (written < total) {
+            int chunk = total - written;
+            if (chunk > 320) chunk = 320;
+            for (int i = 0; i < chunk; i++) {
+                buf[i] = (int16_t)(sinf(phase) * 3000);
+                phase += inc;
+                if (phase >= 2.0f * 3.14159265f) phase -= 2.0f * 3.14159265f;
+            }
+            esp_codec_dev_write(dev_, buf, chunk * sizeof(int16_t));
+            written += chunk;
+        }
+
+        memset(buf, 0, sizeof(buf));
+        esp_codec_dev_write(dev_, buf, sizeof(buf));
     }
 
 private:
-    void WriteReg16(uint8_t reg, uint16_t val) {
-        uint8_t buf[3] = {reg, (uint8_t)(val >> 8), (uint8_t)(val & 0xFF)};
-        i2c_master_transmit(handle_, buf, 3, -1);
-    }
+    i2s_chan_handle_t tx_handle_ = nullptr;
+    const audio_codec_data_if_t* data_if_ = nullptr;
+    const audio_codec_ctrl_if_t* ctrl_if_ = nullptr;
+    const audio_codec_if_t* codec_if_ = nullptr;
+    const audio_codec_gpio_if_t* gpio_if_ = nullptr;
+    esp_codec_dev_handle_t dev_ = nullptr;
 };
 
 class M5StackCoreS3Board : public Board {
@@ -129,10 +232,9 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Pmic* pmic_;
     Aw9523* aw9523_;
-    Aw88298* aw88298_;
     Button boot_button_;
     Display* display_;
-    I2sBuzzer* buzzer_;
+    Aw88298Buzzer* buzzer_;
 
     void InitializeI2c() {
         i2c_master_bus_config_t cfg = {};
@@ -189,9 +291,39 @@ private:
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
+    void InitializeTouch() {
+        esp_lcd_touch_handle_t tp;
+        esp_lcd_touch_config_t tp_cfg = {
+            .x_max = DISPLAY_WIDTH,
+            .y_max = DISPLAY_HEIGHT,
+            .rst_gpio_num = GPIO_NUM_NC,
+            .int_gpio_num = GPIO_NUM_NC,
+            .levels = { .reset = 0, .interrupt = 0 },
+            .flags = { .swap_xy = 0, .mirror_x = 0, .mirror_y = 0 },
+        };
+        esp_lcd_panel_io_handle_t tp_io = nullptr;
+        esp_lcd_panel_io_i2c_config_t tp_io_cfg = {
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 8,
+            .flags = { .disable_control_phase = 1 },
+        };
+        tp_io_cfg.scl_speed_hz = 400 * 1000;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_cfg, &tp_io));
+        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_ft5x06(tp_io, &tp_cfg, &tp));
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = lv_display_get_default(),
+            .handle = tp,
+        };
+        lvgl_port_add_touch(&touch_cfg);
+        ESP_LOGI(TAG, "Touch panel initialized");
+    }
+
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            if (app.IsScreenOff()) { app.NotifyActivity(); return; }
             app.NotifyActivity();
             if (app.GetState().has_prompt()) {
                 app.Approve();
@@ -219,19 +351,22 @@ public:
         InitializeI2c();
         pmic_ = new Pmic(i2c_bus_);
         aw9523_ = new Aw9523(i2c_bus_);
-        aw88298_ = new Aw88298(i2c_bus_);
-        aw88298_->Enable();
+        aw9523_->ResetAw88298();
         InitializeSpi();
         InitializeDisplay();
+        InitializeTouch();
         InitializeButtons();
-        buzzer_ = new I2sBuzzer(AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
-                                AUDIO_I2S_GPIO_DOUT, GPIO_NUM_NC);
+        buzzer_ = new Aw88298Buzzer(i2c_bus_,
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT);
         GetBacklight()->RestoreBrightness();
     }
 
     virtual std::string GetBoardType() override { return "m5stack-core-s3"; }
     virtual Display* GetDisplay() override { return display_; }
     virtual Buzzer* GetBuzzer() override { return buzzer_; }
+    virtual bool HasTouchScreen() override { return true; }
+    virtual const char* GetApprovalHint() override { return "Tap to Approve / Deny"; }
 
     virtual Backlight* GetBacklight() override {
         static PmicBacklight backlight(pmic_);

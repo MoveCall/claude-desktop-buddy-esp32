@@ -15,11 +15,11 @@ public:
 
     void OnStateChanged() override;
 
-    void BlinkOnce();
-    void Blink(int times, int interval_ms);
-    void StartContinuousBlink(int interval_ms);
+    void BlinkOnce(int duration_ms = 200) override;
+    void Blink(int count = 1, int interval_ms = 200) override;
+    void StartContinuousBlink(int interval_ms = 500) override;
     void TurnOn();
-    void TurnOff();
+    void TurnOff() override;
     void SetColor(uint8_t r, uint8_t g, uint8_t b);
 
 private:

@@ -21,6 +21,8 @@ public:
     void OnDoubleClick(std::function<void()> callback);
     void OnMultipleClick(std::function<void()> callback, uint8_t click_count = 3);
 
+    button_handle_t GetHandle() const { return button_handle_; }
+
 protected:
     gpio_num_t gpio_num_;
     button_handle_t button_handle_ = nullptr;

@@ -15,7 +15,6 @@
 
 #include "boards/common/board.h"
 #include "display/display.h"
-#include "led/single_led.h"
 
 #define TAG "buddy"
 
@@ -37,6 +36,7 @@ void BuddyApp::Initialize() {
     // Load persistent stats
     buddy_nvs_init();
     buddy_nvs_load_stats(&stats_);
+    buddy_nvs_load_settings(&settings_);
     ESP_LOGI(TAG, "Stats: approvals=%d denials=%d level=%d tokens=%lu",
              stats_.approvals, stats_.denials, stats_.level,
              (unsigned long)stats_.tokens);
@@ -111,13 +111,13 @@ void BuddyApp::Run() {
         // Track when approval prompt arrives
         if (state_.has_prompt() && !was_prompt) {
             prompt_start_ms_ = now_ms();
-            auto* led = static_cast<SingleLed*>(Board::GetInstance().GetLed());
+            auto* led = Board::GetInstance().GetLed();
             if (led) led->StartContinuousBlink(500);
             auto* buzzer = Board::GetInstance().GetBuzzer();
             if (buzzer) buzzer->AttentionTone();
         }
         if (!state_.has_prompt() && was_prompt) {
-            auto* led = static_cast<SingleLed*>(Board::GetInstance().GetLed());
+            auto* led = Board::GetInstance().GetLed();
             if (led) led->TurnOff();
         }
         was_prompt = state_.has_prompt();
@@ -222,7 +222,7 @@ void BuddyApp::Approve() {
 
     buddy_nvs_save_stats(&stats_);
 
-    auto* led = static_cast<SingleLed*>(Board::GetInstance().GetLed());
+    auto* led = Board::GetInstance().GetLed();
     if (led) led->BlinkOnce();
 
     auto* buzzer = Board::GetInstance().GetBuzzer();
@@ -244,7 +244,7 @@ void BuddyApp::Deny() {
     stats_.update_mood();
     buddy_nvs_save_stats(&stats_);
 
-    auto* led = static_cast<SingleLed*>(Board::GetInstance().GetLed());
+    auto* led = Board::GetInstance().GetLed();
     if (led) led->Blink(2, 200);
 
     auto* buzzer = Board::GetInstance().GetBuzzer();
@@ -273,4 +273,9 @@ void BuddyApp::NotifyActivity() {
     last_activity_ms_ = now_ms();
     auto* backlight = Board::GetInstance().GetBacklight();
     if (backlight) backlight->RestoreBrightness();
+}
+
+bool BuddyApp::IsScreenOff() const {
+    uint32_t idle_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS) - last_activity_ms_;
+    return idle_ms > CONFIG_BUDDY_SCREEN_OFF_MS;
 }

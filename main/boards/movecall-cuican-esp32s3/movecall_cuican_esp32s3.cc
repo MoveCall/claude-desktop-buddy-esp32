@@ -64,15 +64,25 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
+            if (app.IsScreenOff()) { app.NotifyActivity(); return; }
             app.NotifyActivity();
-            if (app.GetState().has_prompt()) {
+            if (buddy_ui_in_settings()) {
+                buddy_ui_settings_next();
+            } else if (app.GetState().has_prompt()) {
                 app.Approve();
             } else {
                 buddy_ui_next_mode();
             }
         });
         boot_button_.OnLongPress([]() {
-            BuddyApp::GetInstance().Deny();
+            auto& app = BuddyApp::GetInstance();
+            if (app.IsScreenOff()) { app.NotifyActivity(); return; }
+            app.NotifyActivity();
+            if (buddy_ui_in_settings()) {
+                buddy_ui_settings_select();
+            } else {
+                app.Deny();
+            }
         });
         boot_button_.OnDoubleClick([]() {
             BuddyApp::GetInstance().NotifyActivity();
@@ -81,12 +91,17 @@ private:
             buddy_nvs_save_species(next);
         });
         boot_button_.OnMultipleClick([]() {
-            if (demo_mode_active()) {
-                demo_mode_stop();
-            } else {
-                demo_mode_start();
-            }
+            if (buddy_ui_in_settings()) return;
+            if (demo_mode_active()) demo_mode_stop();
+            else demo_mode_start();
         }, 3);
+        // 4-click opens settings — register directly with iot_button
+        {
+            static auto settings_cb = []() { buddy_ui_show_settings(); };
+            button_event_args_t args = { .multiple_clicks = { .clicks = 4 } };
+            iot_button_register_cb(boot_button_.GetHandle(), BUTTON_MULTIPLE_CLICK, &args,
+                [](void*, void*) { settings_cb(); }, nullptr);
+        }
     }
 
 public:

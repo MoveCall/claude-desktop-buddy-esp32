@@ -2,6 +2,7 @@
 #include "display/lcd_display.h"
 #include "button.h"
 #include "config.h"
+#include "led/single_led.h"
 #include "es8311_buzzer.h"
 #include "buddy/core/buddy_app.h"
 #include "buddy/core/demo_mode.h"
@@ -12,40 +13,56 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include <esp_lcd_ili9341.h>
+#include <esp_lcd_gc9a01.h>
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
-#define TAG "EspBox3Buddy"
+#define TAG "Magiclick2p5Buddy"
 
-static const ili9341_lcd_init_cmd_t lcd_init_cmds[] = {
-    {0xC8, (uint8_t []){0xFF, 0x93, 0x42}, 3, 0},
-    {0xC0, (uint8_t []){0x0E, 0x0E}, 2, 0},
-    {0xC5, (uint8_t []){0xD0}, 1, 0},
-    {0xC1, (uint8_t []){0x02}, 1, 0},
-    {0xB4, (uint8_t []){0x02}, 1, 0},
-    {0xE0, (uint8_t []){0x00, 0x03, 0x08, 0x06, 0x13, 0x09, 0x39, 0x39, 0x48, 0x02, 0x0a, 0x08, 0x17, 0x17, 0x0F}, 15, 0},
-    {0xE1, (uint8_t []){0x00, 0x28, 0x29, 0x01, 0x0d, 0x03, 0x3f, 0x33, 0x52, 0x04, 0x0f, 0x0e, 0x37, 0x38, 0x0F}, 15, 0},
-    {0xB1, (uint8_t []){00, 0x1B}, 2, 0},
-    {0x36, (uint8_t []){0x08}, 1, 0},
-    {0x3A, (uint8_t []){0x55}, 1, 0},
-    {0xB7, (uint8_t []){0x06}, 1, 0},
-    {0x11, (uint8_t []){0}, 0x80, 0},
-    {0x29, (uint8_t []){0}, 0x80, 0},
-    {0, (uint8_t []){0}, 0xff, 0},
+static const gc9a01_lcd_init_cmd_t gc9107_init_cmds[] = {
+    {0xfe, (uint8_t[]){0x00}, 0, 0},
+    {0xef, (uint8_t[]){0x00}, 0, 0},
+    {0xb0, (uint8_t[]){0xc0}, 1, 0},
+    {0xb1, (uint8_t[]){0x80}, 1, 0},
+    {0xb2, (uint8_t[]){0x27}, 1, 0},
+    {0xb3, (uint8_t[]){0x13}, 1, 0},
+    {0xb6, (uint8_t[]){0x19}, 1, 0},
+    {0xb7, (uint8_t[]){0x05}, 1, 0},
+    {0xac, (uint8_t[]){0xc8}, 1, 0},
+    {0xab, (uint8_t[]){0x0f}, 1, 0},
+    {0x3a, (uint8_t[]){0x05}, 1, 0},
+    {0xb4, (uint8_t[]){0x04}, 1, 0},
+    {0xa8, (uint8_t[]){0x08}, 1, 0},
+    {0xb8, (uint8_t[]){0x08}, 1, 0},
+    {0xea, (uint8_t[]){0x02}, 1, 0},
+    {0xe8, (uint8_t[]){0x2A}, 1, 0},
+    {0xe9, (uint8_t[]){0x47}, 1, 0},
+    {0xe7, (uint8_t[]){0x5f}, 1, 0},
+    {0xc6, (uint8_t[]){0x21}, 1, 0},
+    {0xc7, (uint8_t[]){0x15}, 1, 0},
+    {0xf0, (uint8_t[]){0x1D, 0x38, 0x09, 0x4D, 0x92, 0x2F, 0x35, 0x52, 0x1E, 0x0C, 0x04, 0x12, 0x14, 0x1f}, 14, 0},
+    {0xf1, (uint8_t[]){0x16, 0x40, 0x1C, 0x54, 0xA9, 0x2D, 0x2E, 0x56, 0x10, 0x0D, 0x0C, 0x1A, 0x14, 0x1E}, 14, 0},
+    {0xf4, (uint8_t[]){0x00, 0x00, 0xFF}, 3, 0},
+    {0xba, (uint8_t[]){0xFF, 0xFF}, 2, 0},
 };
 
-class EspBox3Board : public Board {
+class Magiclick2p5Board : public Board {
 private:
     Button boot_button_;
     Display* display_;
     Es8311Buzzer* buzzer_;
 
+    void InitializeLedPower() {
+        gpio_reset_pin(BUILTIN_LED_POWER_PIN);
+        gpio_set_direction(BUILTIN_LED_POWER_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(BUILTIN_LED_POWER_PIN, 0);
+    }
+
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = DISPLAY_SPI_MOSI_PIN;
+        buscfg.mosi_io_num = DISPLAY_SPI_SDA_PIN;
         buscfg.miso_io_num = GPIO_NUM_NC;
-        buscfg.sclk_io_num = DISPLAY_SPI_SCLK_PIN;
+        buscfg.sclk_io_num = DISPLAY_SPI_SCL_PIN;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
@@ -60,27 +77,26 @@ private:
         io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_SPI_DC_PIN;
         io_config.spi_mode = 0;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.pclk_hz = 20 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
-        const ili9341_vendor_config_t vendor_config = {
-            .init_cmds = lcd_init_cmds,
-            .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(lcd_init_cmds[0]),
+        gc9a01_vendor_config_t vendor_config = {
+            .init_cmds = gc9107_init_cmds,
+            .init_cmds_size = sizeof(gc9107_init_cmds) / sizeof(gc9107_init_cmds[0]),
         };
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;
-        panel_config.flags.reset_active_high = 1;
+        panel_config.reset_gpio_num = DISPLAY_SPI_RST_PIN;
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = (void*)&vendor_config;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(panel_io, &panel_config, &panel));
+        panel_config.vendor_config = &vendor_config;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
@@ -96,14 +112,23 @@ private:
             auto& app = BuddyApp::GetInstance();
             if (app.IsScreenOff()) { app.NotifyActivity(); return; }
             app.NotifyActivity();
-            if (app.GetState().has_prompt()) {
+            if (buddy_ui_in_settings()) {
+                buddy_ui_settings_next();
+            } else if (app.GetState().has_prompt()) {
                 app.Approve();
             } else {
                 buddy_ui_next_mode();
             }
         });
         boot_button_.OnLongPress([]() {
-            BuddyApp::GetInstance().Deny();
+            auto& app = BuddyApp::GetInstance();
+            if (app.IsScreenOff()) { app.NotifyActivity(); return; }
+            app.NotifyActivity();
+            if (buddy_ui_in_settings()) {
+                buddy_ui_settings_select();
+            } else {
+                app.Deny();
+            }
         });
         boot_button_.OnDoubleClick([]() {
             BuddyApp::GetInstance().NotifyActivity();
@@ -112,13 +137,15 @@ private:
             buddy_nvs_save_species(next);
         });
         boot_button_.OnMultipleClick([]() {
+            if (buddy_ui_in_settings()) return;
             if (demo_mode_active()) demo_mode_stop();
             else demo_mode_start();
         }, 3);
     }
 
 public:
-    EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    Magiclick2p5Board() : boot_button_(BOOT_BUTTON_GPIO) {
+        InitializeLedPower();
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
@@ -130,7 +157,13 @@ public:
         GetBacklight()->RestoreBrightness();
     }
 
-    virtual std::string GetBoardType() override { return "esp-box-3"; }
+    virtual std::string GetBoardType() override { return "magiclick-2p5"; }
+
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
+    }
+
     virtual Display* GetDisplay() override { return display_; }
     virtual Buzzer* GetBuzzer() override { return buzzer_; }
 
@@ -140,4 +173,4 @@ public:
     }
 };
 
-DECLARE_BOARD(EspBox3Board);
+DECLARE_BOARD(Magiclick2p5Board);

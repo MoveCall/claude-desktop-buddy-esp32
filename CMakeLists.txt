@@ -5,9 +5,19 @@ cmake_minimum_required(VERSION 3.16)
 # Add this line to disable the specific warning
 add_compile_options(-Wno-missing-field-initializers)
 
+# Board-specific sdkconfig: -DBOARD=movecall-cuican-esp32s3
+set(SDKCONFIG_DEFAULTS "sdkconfig.defaults")
+if(DEFINED BOARD)
+    set(BOARD_SDKCONFIG "${CMAKE_SOURCE_DIR}/main/boards/${BOARD}/sdkconfig.board")
+    if(EXISTS "${BOARD_SDKCONFIG}")
+        list(APPEND SDKCONFIG_DEFAULTS "${BOARD_SDKCONFIG}")
+        message(STATUS "Board sdkconfig: ${BOARD_SDKCONFIG}")
+    endif()
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
 idf_build_set_property(MINIMAL_BUILD ON)
 
-set(PROJECT_VER "0.1.0")
+set(PROJECT_VER "0.2.2")
 project(claude-desktop-buddy)

@@ -4,8 +4,11 @@
 class Led {
 public:
     virtual ~Led() = default;
-    // Set the led state based on the device state
     virtual void OnStateChanged() = 0;
+    virtual void StartContinuousBlink(int interval_ms = 500) {}
+    virtual void BlinkOnce(int duration_ms = 200) {}
+    virtual void Blink(int count = 1, int interval_ms = 200) {}
+    virtual void TurnOff() {}
 };
 
 

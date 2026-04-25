@@ -27,6 +27,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8 (368x448)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ATK_DNESP32S3_BOX0
+        bool "ATK-DNESP32S3-BOX0 (ESP32-S3, ST7789 240x240)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MAGICLICK_2P5
+        bool "Magiclick 2P5 (ESP32-S3, GC9107 128x128)"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 config BUDDY_DEVICE_NAME_PREFIX

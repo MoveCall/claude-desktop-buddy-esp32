@@ -63,6 +63,7 @@ public:
     virtual Imu* GetImu() { return nullptr; }
     virtual Buzzer* GetBuzzer() { return nullptr; }
     virtual bool HasTouchScreen() { return false; }
+    virtual const char* GetApprovalHint() { return "Click = Yes    Hold = No"; }
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging);
     virtual bool GetTemperature(float& esp32temp);
 };
