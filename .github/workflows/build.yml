@@ -11,11 +11,33 @@ permissions:
   contents: write
 
 jobs:
-  build-s3:
-    name: Build ESP32-S3 (CuiCan)
+  build:
+    name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v5.5.2
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ESP32-S3 (CuiCan)
+            board: movecall-cuican-esp32s3
+            target: esp32s3
+          - name: ESP32-S3 (Moji)
+            board: movecall-moji-esp32s3
+            target: esp32s3
+          - name: ESP32-C5 (Moji2)
+            board: movecall-moji2-esp32c5
+            target: esp32c5
+          - name: ESP32-S3 (ATK-BOX0)
+            board: atk-dnesp32s3-box0
+            target: esp32s3
+          - name: ESP32-S3 (Magiclick 2P5)
+            board: magiclick-2p5
+            target: esp32s3
+          - name: ESP32-S3 (M5Stack CoreS3)
+            board: m5stack-core-s3
+            target: esp32s3
     steps:
       - uses: actions/checkout@v4
 
@@ -23,81 +45,23 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          idf.py set-target esp32s3
+          idf.py -DBOARD=${{ matrix.board }} set-target ${{ matrix.target }}
           idf.py build
 
       - name: Upload artifact
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-cuican-esp32s3
+          name: firmware-${{ matrix.board }}
           path: |
             build/claude-desktop-buddy.bin
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
             build/ota_data_initial.bin
-
-  build-s3-moji:
-    name: Build ESP32-S3 (Moji)
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:v5.5.2
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure for Moji
-        shell: bash
-        run: |
-          sed -i 's/CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3=y/CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3=y/' sdkconfig.defaults
-          echo "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y" >> sdkconfig.defaults
-
-      - name: Build
-        shell: bash
-        run: |
-          source $IDF_PATH/export.sh
-          idf.py set-target esp32s3
-          idf.py build
-
-      - name: Upload artifact
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware-moji-esp32s3
-          path: |
-            build/claude-desktop-buddy.bin
-            build/bootloader/bootloader.bin
-            build/partition_table/partition-table.bin
-            build/ota_data_initial.bin
-
-  build-c5:
-    name: Build ESP32-C5 (Moji2)
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:v5.5.2
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build
-        shell: bash
-        run: |
-          source $IDF_PATH/export.sh
-          idf.py -B build_c5 set-target esp32c5
-          idf.py -B build_c5 build
-
-      - name: Upload artifact
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware-moji2-esp32c5
-          path: |
-            build_c5/claude-desktop-buddy.bin
-            build_c5/bootloader/bootloader.bin
-            build_c5/partition_table/partition-table.bin
-            build_c5/ota_data_initial.bin
 
   release:
     name: Create Release
-    needs: [build-s3, build-s3-moji, build-c5]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -119,7 +83,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            artifacts/${{ github.ref_name }}-buddy-cuican-esp32s3.tar.gz
-            artifacts/${{ github.ref_name }}-buddy-moji-esp32s3.tar.gz
-            artifacts/${{ github.ref_name }}-buddy-moji2-esp32c5.tar.gz
+          files: artifacts/${{ github.ref_name }}-buddy-*.tar.gz
