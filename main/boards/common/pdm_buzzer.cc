@@ -2,6 +2,11 @@
 #include <esp_log.h>
 #include <esp_rom_gpio.h>
 #include <soc/gpio_sig_map.h>
+
+// Signal name differs across chips
+#ifndef I2SO_SD_OUT_IDX
+#define I2SO_SD_OUT_IDX I2S0O_SD_OUT_IDX
+#endif
 #include <driver/gpio.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
