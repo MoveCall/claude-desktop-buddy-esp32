@@ -31,6 +31,10 @@ ESP32 companion device for Claude Desktop over BLE. Approve permissions, view se
 | **movecall-cuican-esp32s3** | ESP32-S3 | GC9A01 240×240 round | ✅ | ✅ |
 | **movecall-moji-esp32s3** | ESP32-S3 | GC9A01 240×240 round | ✅ | ✅ |
 | **movecall-moji2-esp32c5** | ESP32-C5 | ST77916 360×360 QSPI round | ✅ | ✅ |
+| **movecall-mohi-esp32c3** | ESP32-C3 | ST7789 160×80 | ✅ | |
+| **atk-dnesp32s3-box0** | ESP32-S3 | ST7789 240×240 | ✅ | ✅ |
+| **magiclick-2p5** | ESP32-S3 | GC9107 128×128 | ✅ | ✅ |
+| **m5stack-core-s3** | ESP32-S3 | ILI9341 320×240 touch | ✅ | ✅ |
 
 More [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) compatible boards can be added — the board abstraction layer supports 100+ hardware variants. See [HARDWARE.md](docs/HARDWARE.md) for the full compatibility list.
 

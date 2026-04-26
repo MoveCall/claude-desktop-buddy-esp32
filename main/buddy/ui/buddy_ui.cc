@@ -16,6 +16,7 @@
 #include "boards/common/board.h"
 #include <esp_system.h>
 #include <esp_mac.h>
+#include <esp_app_desc.h>
 
 extern const lv_font_t BUILTIN_TEXT_FONT;
 extern const lv_font_t BUILTIN_ICON_FONT;
@@ -27,12 +28,16 @@ static uint32_t now_ms() {
     return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
 }
 
-// 240x240 round display — usable inscribed circle ~200px diameter
-// Safe content zone: centered 200x200, avoid corners
+// Default layout for 240x240 round display
 #define SCREEN_W 240
 #define SCREEN_H 240
 #define SAFE_TOP    40
 #define SAFE_BOTTOM 40
+
+// Runtime small-screen flag (e.g. MoHi 160x80)
+static bool s_compact = false;
+static int s_scr_w = 240;
+static int s_scr_h = 240;
 
 // Dark theme colors
 #define COLOR_BG        lv_color_hex(0x0f0f1a)
@@ -69,7 +74,8 @@ static lv_obj_t* s_info_text = nullptr;
 
 // Display mode: 0=pet, 1+=info pages
 static uint8_t s_display_mode = 0;
-static const uint8_t INFO_PAGES = 6;
+static const uint8_t INFO_PAGES_NORMAL = 6;
+static const uint8_t INFO_PAGES_COMPACT = 4;
 static uint32_t s_mode_switch_ms = 0;
 static const uint32_t AUTO_RETURN_MS = 10000;  // stats, sessions, device
 
@@ -138,58 +144,92 @@ void buddy_ui_init() {
     lv_obj_set_style_bg_opa(s_screen, LV_OPA_COVER, 0);
     lv_obj_set_scrollbar_mode(s_screen, LV_SCROLLBAR_MODE_OFF);
 
-    // --- Top area: connection dot ---
+    // Detect screen size for compact layout (MoHi 160x80, etc.)
+    lv_obj_t* disp_obj = lv_display_get_screen_active(lv_display_get_default());
+    s_scr_w = lv_obj_get_width(disp_obj);
+    s_scr_h = lv_obj_get_height(disp_obj);
+    s_compact = (s_scr_h <= 80);
+
+    int safe_top = s_compact ? 2 : SAFE_TOP;
+    int safe_bot = s_compact ? 2 : SAFE_BOTTOM;
+    int content_w = s_compact ? s_scr_w - 8 : 180;
+
+    // --- Connection dot (top-right on compact, top-center on normal) ---
     s_dot = lv_obj_create(s_screen);
     lv_obj_remove_style_all(s_dot);
-    lv_obj_set_size(s_dot, 8, 8);
+    lv_obj_set_size(s_dot, s_compact ? 6 : 8, s_compact ? 6 : 8);
     lv_obj_set_style_radius(s_dot, 4, 0);
     lv_obj_set_style_bg_color(s_dot, COLOR_DIM, 0);
     lv_obj_set_style_bg_opa(s_dot, LV_OPA_COVER, 0);
-    lv_obj_align(s_dot, LV_ALIGN_TOP_MID, 0, SAFE_TOP);
+    if (s_compact) {
+        lv_obj_align(s_dot, LV_ALIGN_TOP_RIGHT, -3, 3);
+    } else {
+        lv_obj_align(s_dot, LV_ALIGN_TOP_MID, 0, safe_top);
+    }
 
-    // --- Session count (below dot) ---
+    // --- Session count ---
     s_session_label = lv_label_create(s_screen);
     lv_obj_set_style_text_font(s_session_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_session_label, COLOR_DIM, 0);
     lv_label_set_text(s_session_label, "");
-    lv_obj_align(s_session_label, LV_ALIGN_TOP_MID, 0, SAFE_TOP + 14);
+    if (s_compact) {
+        lv_obj_align(s_session_label, LV_ALIGN_TOP_RIGHT, -12, 1);
+    } else {
+        lv_obj_align(s_session_label, LV_ALIGN_TOP_MID, 0, safe_top + 14);
+    }
 
     // --- Center: ASCII pet ---
     s_icon_label = lv_label_create(s_screen);
     lv_obj_set_style_text_font(s_icon_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_icon_label, COLOR_TEXT, 0);
-    lv_obj_set_style_text_align(s_icon_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(s_icon_label, 180);
+    lv_obj_set_style_text_align(s_icon_label, s_compact ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_icon_label, s_compact ? 70 : content_w);
     lv_label_set_text(s_icon_label, "  /\\_/\\\n ( - - )\n (  w  )\n (\")_(\")");
-    lv_obj_align(s_icon_label, LV_ALIGN_CENTER, 0, -30);
+    if (s_compact) {
+        lv_obj_align(s_icon_label, LV_ALIGN_LEFT_MID, 14, -4);
+    } else {
+        lv_obj_align(s_icon_label, LV_ALIGN_CENTER, 0, -30);
+    }
 
-    // --- State name ---
+    // --- State name (hidden in compact — replaced by dot) ---
     s_state_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_state_label, 180);
-    lv_obj_set_style_text_font(s_state_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_width(s_state_label, content_w);
+    lv_obj_set_style_text_font(s_state_label, s_compact ? &font_puhui_14_1 : &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(s_state_label, COLOR_DIM, 0);
     lv_obj_set_style_text_align(s_state_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_state_label, "Disconnected");
-    lv_obj_align(s_state_label, LV_ALIGN_CENTER, 0, 5);
+    if (s_compact) {
+        lv_obj_add_flag(s_state_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_align(s_state_label, LV_ALIGN_CENTER, 0, 5);
+    }
 
     // --- Status message ---
     s_status_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_status_label, 170);
+    lv_obj_set_width(s_status_label, s_compact ? 90 : content_w);
     lv_obj_set_style_text_font(s_status_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_status_label, COLOR_DIM, 0);
-    lv_obj_set_style_text_align(s_status_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(s_status_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(s_status_label, s_compact ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(s_status_label, s_compact ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_status_label, "Waiting for Claude...");
-    lv_obj_align(s_status_label, LV_ALIGN_CENTER, 0, 30);
+    if (s_compact) {
+        lv_obj_align(s_status_label, LV_ALIGN_BOTTOM_RIGHT, -4, -2);
+    } else {
+        lv_obj_align(s_status_label, LV_ALIGN_CENTER, 0, 30);
+    }
 
     // --- Clock (shown when idle + time synced) ---
     s_clock_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_clock_label, 180);
-    lv_obj_set_style_text_font(s_clock_label, &lv_font_montserrat_28, 0);
+    lv_obj_set_width(s_clock_label, content_w);
+    lv_obj_set_style_text_font(s_clock_label, s_compact ? &lv_font_montserrat_20 : &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(s_clock_label, COLOR_DIM, 0);
-    lv_obj_set_style_text_align(s_clock_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(s_clock_label, s_compact ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_clock_label, "");
-    lv_obj_align(s_clock_label, LV_ALIGN_CENTER, 0, 50);
+    if (s_compact) {
+        lv_obj_align(s_clock_label, LV_ALIGN_RIGHT_MID, -4, 0);
+    } else {
+        lv_obj_align(s_clock_label, LV_ALIGN_CENTER, 0, 50);
+    }
     lv_obj_add_flag(s_clock_label, LV_OBJ_FLAG_HIDDEN);
 
     // --- Particle overlay (Zzz, !, etc) ---
@@ -197,123 +237,151 @@ void buddy_ui_init() {
     lv_obj_set_style_text_font(s_particle_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_particle_label, COLOR_DIM, 0);
     lv_label_set_text(s_particle_label, "");
-    lv_obj_align(s_particle_label, LV_ALIGN_CENTER, 50, -45);
+    if (s_compact) {
+        lv_obj_align(s_particle_label, LV_ALIGN_LEFT_MID, 55, -20);
+    } else {
+        lv_obj_align(s_particle_label, LV_ALIGN_CENTER, 50, -45);
+    }
 
     // --- Approval mode: tool name ---
     s_tool_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_tool_label, 170);
+    lv_obj_set_width(s_tool_label, content_w);
     lv_obj_set_style_text_font(s_tool_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_tool_label, COLOR_YELLOW, 0);
     lv_obj_set_style_text_align(s_tool_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_tool_label, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_tool_label, "");
-    lv_obj_align(s_tool_label, LV_ALIGN_CENTER, 0, 10);
+    if (s_compact) {
+        lv_obj_align(s_tool_label, LV_ALIGN_TOP_MID, 0, 2);
+    } else {
+        lv_obj_align(s_tool_label, LV_ALIGN_CENTER, 0, 10);
+    }
     lv_obj_add_flag(s_tool_label, LV_OBJ_FLAG_HIDDEN);
 
     // --- Approval mode: hint ---
     s_hint_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_hint_label, 160);
+    lv_obj_set_width(s_hint_label, content_w);
     lv_obj_set_style_text_font(s_hint_label, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_hint_label, COLOR_DIM, 0);
     lv_obj_set_style_text_align(s_hint_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_hint_label, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_hint_label, "");
-    lv_obj_align(s_hint_label, LV_ALIGN_CENTER, 0, 35);
+    if (s_compact) {
+        lv_obj_align(s_hint_label, LV_ALIGN_BOTTOM_MID, 0, -2);
+    } else {
+        lv_obj_align(s_hint_label, LV_ALIGN_CENTER, 0, 35);
+    }
     lv_obj_add_flag(s_hint_label, LV_OBJ_FLAG_HIDDEN);
 
     // --- Bottom: action hint ---
     s_action_label = lv_label_create(s_screen);
-    lv_obj_set_width(s_action_label, 180);
+    lv_obj_set_width(s_action_label, content_w);
     lv_obj_set_style_text_font(s_action_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_action_label, COLOR_GREEN, 0);
     lv_obj_set_style_text_align(s_action_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_action_label, "");
-    lv_obj_align(s_action_label, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+    lv_obj_align(s_action_label, LV_ALIGN_BOTTOM_MID, 0, -safe_bot);
     lv_obj_add_flag(s_action_label, LV_OBJ_FLAG_HIDDEN);
 
     // --- Info panel (hidden by default, shown on mode switch) ---
     s_info_panel = lv_obj_create(s_screen);
     lv_obj_remove_style_all(s_info_panel);
-    lv_obj_set_size(s_info_panel, SCREEN_W, SCREEN_H);
+    lv_obj_set_size(s_info_panel, s_scr_w, s_scr_h);
     lv_obj_set_style_bg_color(s_info_panel, COLOR_BG, 0);
     lv_obj_set_style_bg_opa(s_info_panel, LV_OPA_COVER, 0);
     lv_obj_center(s_info_panel);
     lv_obj_set_scrollbar_mode(s_info_panel, LV_SCROLLBAR_MODE_OFF);
 
-    lv_obj_t* info_title = lv_label_create(s_info_panel);
-    lv_obj_set_style_text_font(info_title, &font_puhui_14_1, 0);
-    lv_obj_set_style_text_color(info_title, COLOR_DIM, 0);
-    lv_label_set_text(info_title, "Click to switch pages");
-    lv_obj_align(info_title, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+    if (!s_compact) {
+        lv_obj_t* info_title = lv_label_create(s_info_panel);
+        lv_obj_set_style_text_font(info_title, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_color(info_title, COLOR_DIM, 0);
+        lv_label_set_text(info_title, "Click to switch pages");
+        lv_obj_align(info_title, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+    }
 
     s_info_text = lv_label_create(s_info_panel);
-    lv_obj_set_width(s_info_text, 180);
+    lv_obj_set_width(s_info_text, s_compact ? s_scr_w - 8 : 180);
     lv_obj_set_style_text_font(s_info_text, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_info_text, COLOR_TEXT, 0);
     lv_obj_set_style_text_align(s_info_text, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(s_info_text, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_info_text, "");
-    lv_obj_align(s_info_text, LV_ALIGN_CENTER, 0, 5);
+    if (s_compact) {
+        lv_obj_align(s_info_text, LV_ALIGN_TOP_LEFT, 4, 2);
+    } else {
+        lv_obj_align(s_info_text, LV_ALIGN_CENTER, 0, 5);
+    }
 
     lv_obj_add_flag(s_info_panel, LV_OBJ_FLAG_HIDDEN);
 
     // --- Settings overlay ---
     s_settings_panel = lv_obj_create(s_screen);
     lv_obj_remove_style_all(s_settings_panel);
-    lv_obj_set_size(s_settings_panel, SCREEN_W, SCREEN_H);
+    lv_obj_set_size(s_settings_panel, s_scr_w, s_scr_h);
     lv_obj_set_style_bg_color(s_settings_panel, COLOR_BG, 0);
     lv_obj_set_style_bg_opa(s_settings_panel, LV_OPA_COVER, 0);
     lv_obj_center(s_settings_panel);
 
-    lv_obj_t* settings_title = lv_label_create(s_settings_panel);
-    lv_obj_set_style_text_font(settings_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(settings_title, COLOR_GREEN, 0);
-    lv_label_set_text(settings_title, "Settings");
-    lv_obj_align(settings_title, LV_ALIGN_TOP_MID, 0, SAFE_TOP);
+    if (!s_compact) {
+        lv_obj_t* settings_title = lv_label_create(s_settings_panel);
+        lv_obj_set_style_text_font(settings_title, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(settings_title, COLOR_GREEN, 0);
+        lv_label_set_text(settings_title, "Settings");
+        lv_obj_align(settings_title, LV_ALIGN_TOP_MID, 0, SAFE_TOP);
+    }
 
     s_settings_text = lv_label_create(s_settings_panel);
-    lv_obj_set_width(s_settings_text, 180);
+    lv_obj_set_width(s_settings_text, s_compact ? s_scr_w - 8 : 180);
     lv_obj_set_style_text_font(s_settings_text, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_settings_text, COLOR_TEXT, 0);
     lv_obj_set_style_text_align(s_settings_text, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(s_settings_text, "");
-    lv_obj_align(s_settings_text, LV_ALIGN_CENTER, 0, 0);
+    if (s_compact) {
+        lv_obj_align(s_settings_text, LV_ALIGN_TOP_LEFT, 4, 2);
+    } else {
+        lv_obj_align(s_settings_text, LV_ALIGN_CENTER, 0, 0);
+    }
 
-    lv_obj_t* settings_hint = lv_label_create(s_settings_panel);
-    lv_obj_set_style_text_font(settings_hint, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(settings_hint, COLOR_DIM, 0);
-    lv_label_set_text(settings_hint, "Click=Next  Hold=Toggle/Run");
-    lv_obj_align(settings_hint, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+    if (!s_compact) {
+        lv_obj_t* settings_hint = lv_label_create(s_settings_panel);
+        lv_obj_set_style_text_font(settings_hint, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(settings_hint, COLOR_DIM, 0);
+        lv_label_set_text(settings_hint, "Click=Next  Hold=Toggle/Run");
+        lv_obj_align(settings_hint, LV_ALIGN_BOTTOM_MID, 0, -SAFE_BOTTOM);
+    }
 
     lv_obj_add_flag(s_settings_panel, LV_OBJ_FLAG_HIDDEN);
 
     // --- Passkey overlay ---
     s_passkey_container = lv_obj_create(s_screen);
     lv_obj_remove_style_all(s_passkey_container);
-    lv_obj_set_size(s_passkey_container, SCREEN_W, SCREEN_H);
+    lv_obj_set_size(s_passkey_container, s_scr_w, s_scr_h);
     lv_obj_set_style_bg_color(s_passkey_container, COLOR_BG, 0);
     lv_obj_set_style_bg_opa(s_passkey_container, LV_OPA_COVER, 0);
     lv_obj_center(s_passkey_container);
     lv_obj_set_scrollbar_mode(s_passkey_container, LV_SCROLLBAR_MODE_OFF);
 
-    lv_obj_t* pk_icon = lv_label_create(s_passkey_container);
-    lv_obj_set_style_text_font(pk_icon, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(pk_icon, COLOR_BLUE, 0);
-    lv_label_set_text(pk_icon, FONT_AWESOME_BLUETOOTH);
-    lv_obj_align(pk_icon, LV_ALIGN_CENTER, 0, -50);
+    if (!s_compact) {
+        lv_obj_t* pk_icon = lv_label_create(s_passkey_container);
+        lv_obj_set_style_text_font(pk_icon, &BUILTIN_ICON_FONT, 0);
+        lv_obj_set_style_text_color(pk_icon, COLOR_BLUE, 0);
+        lv_label_set_text(pk_icon, FONT_AWESOME_BLUETOOTH);
+        lv_obj_align(pk_icon, LV_ALIGN_CENTER, 0, -50);
+    }
 
     s_passkey_title = lv_label_create(s_passkey_container);
     lv_obj_set_style_text_font(s_passkey_title, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(s_passkey_title, COLOR_DIM, 0);
     lv_label_set_text(s_passkey_title, "Enter on desktop:");
-    lv_obj_align(s_passkey_title, LV_ALIGN_CENTER, 0, -15);
+    lv_obj_align(s_passkey_title, s_compact ? LV_ALIGN_TOP_MID : LV_ALIGN_CENTER, 0, s_compact ? 4 : -15);
 
     s_passkey_label = lv_label_create(s_passkey_container);
-    lv_obj_set_style_text_font(s_passkey_label, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(s_passkey_label, s_compact ? &lv_font_montserrat_16 : &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(s_passkey_label, COLOR_TEXT, 0);
-    lv_obj_set_style_text_letter_space(s_passkey_label, 6, 0);
+    lv_obj_set_style_text_letter_space(s_passkey_label, s_compact ? 3 : 6, 0);
     lv_label_set_text(s_passkey_label, "000000");
-    lv_obj_align(s_passkey_label, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_align(s_passkey_label, LV_ALIGN_CENTER, 0, s_compact ? 10 : 20);
 
     lv_obj_add_flag(s_passkey_container, LV_OBJ_FLAG_HIDDEN);
 
@@ -348,6 +416,46 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
         char buf[300];
         auto& stats = BuddyApp::GetInstance().GetStats();
 
+        if (s_compact) {
+            // Compact info pages for 160x80 (max ~4 lines visible)
+            if (s_display_mode == 1) {
+                snprintf(buf, sizeof(buf),
+                    "Y:%d N:%d Tk:%lu\nLv:%d %s\nSess:%d Run:%d",
+                    stats.approvals, stats.denials,
+                    (unsigned long)stats.tokens,
+                    stats.level, buddy_pet_get_species_name(),
+                    state.sessions_total, state.sessions_running);
+            } else if (s_display_mode == 2) {
+                size_t heap = esp_get_free_heap_size();
+                uint32_t up = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS / 1000);
+                snprintf(buf, sizeof(buf),
+                    "BLE:%s%s\nHeap:%uK Up:%lum\n%s",
+                    state.connected ? "ON" : "OFF",
+                    nus_secure() ? "+enc" : "",
+                    (unsigned)(heap / 1024),
+                    (unsigned long)(up / 60),
+                    state.msg);
+            } else if (s_display_mode == 3) {
+                const esp_app_desc_t* app_info = esp_app_get_description();
+                uint8_t mac[6];
+                esp_read_mac(mac, ESP_MAC_BT);
+                snprintf(buf, sizeof(buf),
+                    "v%s %s\n%02X:%02X:%02X:%02X:%02X:%02X",
+                    app_info->version, BOARD_NAME,
+                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+            } else {
+                // Activity
+                int pos = 0;
+                if (state.n_lines == 0) {
+                    pos += snprintf(buf + pos, sizeof(buf) - pos, "(no activity)");
+                } else {
+                    int start = state.n_lines > 3 ? state.n_lines - 3 : 0;
+                    for (int i = start; i < state.n_lines && pos < (int)sizeof(buf) - 2; i++)
+                        pos += snprintf(buf + pos, sizeof(buf) - pos, "%s\n", state.lines[i]);
+                }
+            }
+        } else {
+            // Normal info pages for 240x240+
         if (s_display_mode == 1) {
             // Page 1: Pet Stats
             // Hearts for mood
@@ -438,14 +546,16 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
             );
         } else if (s_display_mode == 5) {
             // Page 5: About
+            const esp_app_desc_t* app_info = esp_app_get_description();
             snprintf(buf, sizeof(buf),
                 "claude-desktop-buddy\n"
                 "        -esp32\n\n"
-                "Version: 0.2.0\n"
+                "Version: %s\n"
                 "Board: %s\n\n"
                 "github.com/MoveCall/\n"
                 "claude-desktop-\n"
                 "buddy-esp32",
+                app_info->version,
                 BOARD_NAME
             );
         } else {
@@ -460,7 +570,8 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
                     pos += snprintf(buf + pos, sizeof(buf) - pos, "%s\n", state.lines[i]);
                 }
             }
-        }
+        } // end else (normal pages)
+        } // end if (s_compact) else
 
         lv_label_set_text(s_info_text, buf);
         lvgl_port_unlock();
@@ -531,8 +642,10 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
     }
 
     if (persona != s_last_persona) {
-        lv_label_set_text(s_state_label, persona_text(persona));
-        lv_obj_set_style_text_color(s_state_label, persona_color(persona), 0);
+        if (!s_compact) {
+            lv_label_set_text(s_state_label, persona_text(persona));
+            lv_obj_set_style_text_color(s_state_label, persona_color(persona), 0);
+        }
         s_last_persona = persona;
     }
 
@@ -541,11 +654,11 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
     if (has_prompt && !approval_sent) {
         // Approval mode
         lv_obj_add_flag(s_status_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(s_state_label, LV_OBJ_FLAG_HIDDEN);
+        if (!s_compact) lv_obj_add_flag(s_state_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_clock_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(s_tool_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(s_hint_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(s_action_label, LV_OBJ_FLAG_HIDDEN);
+        if (!s_compact) lv_obj_remove_flag(s_action_label, LV_OBJ_FLAG_HIDDEN);
 
         if (!s_last_has_prompt) {
             lv_label_set_text(s_tool_label, state.prompt_tool);
@@ -559,7 +672,7 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
     } else {
         // Normal mode
         lv_obj_remove_flag(s_status_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(s_state_label, LV_OBJ_FLAG_HIDDEN);
+        if (!s_compact) lv_obj_remove_flag(s_state_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_tool_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_hint_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_action_label, LV_OBJ_FLAG_HIDDEN);
@@ -578,6 +691,7 @@ void buddy_ui_update(const TamaState& state, PersonaState persona, bool approval
             strftime(time_buf, sizeof(time_buf), "%H:%M", tm);
             lv_label_set_text(s_clock_label, time_buf);
             lv_obj_remove_flag(s_clock_label, LV_OBJ_FLAG_HIDDEN);
+            if (s_compact) lv_obj_add_flag(s_status_label, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(s_clock_label, LV_OBJ_FLAG_HIDDEN);
         }
@@ -605,7 +719,7 @@ void buddy_ui_hide_passkey() {
 void buddy_ui_next_mode() {
     if (!lvgl_port_lock(100)) return;
 
-    s_display_mode = (s_display_mode + 1) % (1 + INFO_PAGES);
+    s_display_mode = (s_display_mode + 1) % (1 + (s_compact ? INFO_PAGES_COMPACT : INFO_PAGES_NORMAL));
     s_mode_switch_ms = now_ms();
 
     if (s_display_mode == 0) {

@@ -1,6 +1,7 @@
 #include "circular_strip.h"
-#include "application.h"
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <algorithm>
 
 #define TAG "CircularStrip"
@@ -194,52 +195,35 @@ void CircularStrip::SetBrightness(uint8_t default_brightness, uint8_t low_bright
     OnStateChanged();
 }
 
-void CircularStrip::OnStateChanged() {
-    auto& app = Application::GetInstance();
-    auto device_state = app.GetDeviceState();
-    switch (device_state) {
-        case kDeviceStateStarting: {
-            StripColor low = { 0, 0, 0 };
-            StripColor high = { low_brightness_, low_brightness_, default_brightness_ };
-            Scroll(low, high, 3, 100);
-            break;
-        }
-        case kDeviceStateWifiConfiguring: {
-            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
-            Blink(color, 500);
-            break;
-        }
-        case kDeviceStateIdle:
-            FadeOut(50);
-            break;
-        case kDeviceStateConnecting: {
-            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
-            SetAllColor(color);
-            break;
-        }
-        case kDeviceStateListening:
-        case kDeviceStateAudioTesting: {
-            StripColor color = { default_brightness_, low_brightness_, low_brightness_ };
-            SetAllColor(color);
-            break;
-        }
-        case kDeviceStateSpeaking: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
-            SetAllColor(color);
-            break;
-        }
-        case kDeviceStateUpgrading: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
-            Blink(color, 100);
-            break;
-        }
-        case kDeviceStateActivating: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
-            Blink(color, 500);
-            break;
-        }
-        default:
-            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
-            return;
+void CircularStrip::StartContinuousBlink(int interval_ms) {
+    StripColor color = { default_brightness_, (uint8_t)(default_brightness_ / 2), 0 };
+    Blink(color, interval_ms);
+}
+
+void CircularStrip::BlinkOnce(int duration_ms) {
+    StripColor color = { 0, default_brightness_, 0 };
+    SetAllColor(color);
+    FadeOut(duration_ms / 4);
+}
+
+void CircularStrip::Blink(int count, int interval_ms) {
+    StripColor color = { 0, default_brightness_, 0 };
+    for (int i = 0; i < count; i++) {
+        SetAllColor(color);
+        vTaskDelay(pdMS_TO_TICKS(interval_ms));
+        led_strip_clear(led_strip_);
+        led_strip_refresh(led_strip_);
+        if (i < count - 1) vTaskDelay(pdMS_TO_TICKS(interval_ms));
     }
+}
+
+void CircularStrip::TurnOff() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(strip_timer_);
+    strip_callback_ = nullptr;
+    led_strip_clear(led_strip_);
+}
+
+void CircularStrip::OnStateChanged() {
+    // Not used in buddy app
 }

@@ -15,6 +15,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MOVECALL_MOJI2_ESP32C5
         bool "Movecall Moji2 (ESP32-C5, ST77916 360x360)"
         depends on IDF_TARGET_ESP32C5
+    config BOARD_TYPE_MOVECALL_MOHI_ESP32C3
+        bool "Movecall MoHi (ESP32-C3, ST7789 160x80)"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_ESP_BOX_3
         bool "Espressif ESP-BOX-3 (ESP32-S3, ILI9341 320x240)"
         depends on IDF_TARGET_ESP32S3

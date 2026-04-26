@@ -20,6 +20,7 @@ set(SOURCES
     "boards/common/buzzer.cc"
     "boards/common/es8311_buzzer.cc"
     "boards/common/i2s_buzzer.cc"
+    "boards/common/pdm_buzzer.cc"
     "boards/common/button.cc"
     "boards/common/system_reset.cc"
     "settings.cc"
@@ -45,6 +46,10 @@ elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI2_ESP32C5)
     set(BOARD_TYPE "movecall-moji2-esp32c5")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
+elseif(CONFIG_BOARD_TYPE_MOVECALL_MOHI_ESP32C3)
+    set(BOARD_TYPE "movecall-mohi-esp32c3")
+    set(BUILTIN_TEXT_FONT font_puhui_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
@@ -113,6 +118,7 @@ idf_component_register(SRCS ${SOURCES}
                         json
                         vfs
                         mbedtls
+                        esp_app_format
                     )
 
 if(NOT BOARD_NAME)

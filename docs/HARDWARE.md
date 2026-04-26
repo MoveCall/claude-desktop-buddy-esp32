@@ -7,6 +7,7 @@
 | movecall-cuican-esp32s3 | ESP32-S3 | ✅ | ✅ |
 | movecall-moji-esp32s3 | ESP32-S3 | ✅ | ✅ |
 | movecall-moji2-esp32c5 | ESP32-C5 | ✅ | ✅ |
+| movecall-mohi-esp32c3 | ESP32-C3 | ✅ | |
 
 ## xiaozhi-esp32 Ecosystem
 

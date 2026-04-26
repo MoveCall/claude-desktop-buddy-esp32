@@ -23,6 +23,10 @@ public:
 
     using Led::Blink;
     void OnStateChanged() override;
+    void StartContinuousBlink(int interval_ms = 500) override;
+    void BlinkOnce(int duration_ms = 200) override;
+    void Blink(int count = 1, int interval_ms = 200) override;
+    void TurnOff() override;
     void SetBrightness(uint8_t default_brightness, uint8_t low_brightness);
     void SetAllColor(StripColor color);
     void SetSingleColor(uint8_t index, StripColor color);
