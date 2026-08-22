@@ -47,6 +47,17 @@ More [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) compatible boards can 
 
 ### Build & Flash
 
+Every board pins its own chip target in `main/boards/<board>/sdkconfig.board`, so
+naming the board is enough and no `set-target` step is needed:
+
+```bash
+idf.py -DBOARD=m5stack-core-s3 build
+idf.py -p PORT flash
+```
+
+Board names are the directory names under `main/boards/`. The per-chip flows below
+still work if you would rather pick the board in `menuconfig`.
+
 **ESP32-S3 boards (CuiCan, Moji):**
 
 ```bash

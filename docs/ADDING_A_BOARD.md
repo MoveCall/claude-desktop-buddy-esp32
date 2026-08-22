@@ -16,6 +16,7 @@ This guide explains how to add support for a new hardware board to claude-deskto
 main/boards/<board-name>/
 ├── config.h          # Pin definitions
 ├── config.json       # Build metadata
+├── sdkconfig.board   # Board-specific sdkconfig defaults
 ├── <board-name>.cc   # Board class implementation
 └── README.md         # Brief description
 ```
@@ -175,7 +176,39 @@ espressif/esp_lcd_gc9a01: ==2.0.1  # or your driver
 }
 ```
 
-### 8. Build and test
+### 8. Create sdkconfig.board
+
+`CMakeLists.txt` appends this file to `SDKCONFIG_DEFAULTS` when you pass
+`-DBOARD=<board-name>`, so it holds whatever is a property of the hardware rather
+than a user preference.
+
+```
+# <Board Name>: 16MB flash, has PSRAM
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_BOARD_TYPE_<BOARD_NAME>=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m.csv"
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+```
+
+`CONFIG_IDF_TARGET` must match the `target` in `config.json`. Without it the chip is
+recorded only in the generated `sdkconfig` — which has to be deleted whenever these
+defaults change, and deleting it silently falls back to `esp32`. The build then
+succeeds and produces a clean binary for the wrong chip; the only sign is
+`Creating esp32 image...` in the log.
+
+### 9. Build and test
+
+With the target pinned in `sdkconfig.board`, naming the board is enough:
+
+```bash
+idf.py -DBOARD=<board-name> build
+idf.py -p PORT flash
+```
+
+Selecting the board interactively also still works:
 
 ```bash
 idf.py set-target esp32s3
