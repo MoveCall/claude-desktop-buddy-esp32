@@ -5,7 +5,11 @@
 #include <aw88298_dac.h>
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
-#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+// CoreS3 has no BOOT button - only POWER and RESET, on the side - and GPIO0
+// here is AUDIO_I2S_GPIO_MCLK below. The I2S peripheral claims the pin after
+// the button does, so a button on it sits on a ~4MHz clock output and can
+// never report a press. Input on this board is the touch screen.
+#define BOOT_BUTTON_GPIO        GPIO_NUM_NC
 
 // I2C bus (shared by PMIC, IO expander, audio codec)
 #define I2C_SDA_PIN GPIO_NUM_12
