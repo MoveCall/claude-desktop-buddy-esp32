@@ -321,6 +321,11 @@ private:
     }
 
     void InitializeButtons() {
+        // BOOT_BUTTON_GPIO is GPIO_NUM_NC on this board (see config.h), so
+        // Button's constructor no-ops and every binding below is inert. They
+        // are kept, not deleted: they are the shared shape every other board
+        // uses, and a revision that wires a real button would just work.
+        ESP_LOGI(TAG, "No boot button on this board; input is the touch screen");
         boot_button_.OnClick([]() {
             auto& app = BuddyApp::GetInstance();
             if (app.IsScreenOff()) { app.NotifyActivity(); return; }
